@@ -80,9 +80,7 @@ async def handle_funding_candidate(
         return None
     # the spot leg lives on the same base asset (BTC perp -> BTC/USD spot)
     base = rate.symbol.split("/")[0]
-    spot_symbol = ctx.settings.spot_symbol_for_base(base)
-    if spot_symbol is None:
-        return None
+    spot_symbol = ctx.settings.spot_symbol_for_base(base) or f"{base}/USD"
     spot_key = f"{ctx.spot_ex}:{spot_symbol}"
     pkey = f"{spot_key}|{fkey}"
     if pkey in ctx.open_carries:
@@ -90,10 +88,12 @@ async def handle_funding_candidate(
     history = await asyncio.to_thread(
         ctx.ticks.funding_history, rate.exchange, rate.symbol
     )
+    # holding horizon 30 days expressed in THIS venue's funding intervals
+    interval_h = ctx.settings.funding_interval_h_for(rate.exchange)
     opp = detect_funding_carry(
         rate,
         notional=ctx.notional,
-        holding_intervals=90,
+        holding_intervals=int(Decimal("720") / interval_h),
         spot_taker_fee_bps=ctx.settings.taker_fee_for(ctx.spot_ex),
         perp_taker_fee_bps=ctx.settings.taker_fee_for(rate.exchange),
         slippage_buffer_bps=ctx.settings.slippage_buffer_bps,

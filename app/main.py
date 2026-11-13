@@ -48,6 +48,8 @@ from app.engines.arbitrage import FundingOpportunity
 from app.engines.monitor import MonitorAction, evaluate_carry
 from app.engines.paper_trader import PaperFill, PaperTrader
 from app.engines.risk import CarryPositionRisk, StalenessGate, UtaAccountState
+from app.engines import screener as scr
+from app.connectors import screener_io
 from app.engines.validator import uta_allocation
 from app.ui.cli_dashboard import render
 from app.ui.notifier import TelegramNotifier
@@ -146,15 +148,35 @@ async def run() -> None:
             logger.warning("minimal markets %s failed: %s", v, exc)
             venue_markets[v] = None
     spot_ex = settings.spot_exchange_list[0]
-    for sym in spot_symbols:
-        tasks.append(asyncio.create_task(
-            BookFeed(spot_ex, [sym], markets_list=venue_markets.get(spot_ex)).run(bus, stop)))
-    for ex in settings.perp_exchange_list:
-        syms = settings.perp_symbols_for(ex)
-        tasks.append(asyncio.create_task(
-            BookFeed(ex, syms, markets_list=venue_markets.get(ex)).run(bus, stop)))
-        tasks.append(asyncio.create_task(
-            FundingPoller(ex, syms, markets_list=venue_markets.get(ex)).run(bus, stop)))
+
+    # Feeds are tracked per symbol so the screener can subscribe/unsubscribe
+    # without restarting the engine. Each feed gets its own stop event.
+    feed_tasks: dict[str, tuple[asyncio.Task, asyncio.Event]] = {}
+
+    def start_feed(name: str, factory) -> None:
+        ev = asyncio.Event()
+        t = asyncio.create_task(factory(ev))
+        tasks.append(t)
+        feed_tasks[name] = (t, ev)
+
+    def stop_feed(name: str) -> None:
+        t, ev = feed_tasks.pop(name)
+        ev.set()
+        t.cancel()
+        if t in tasks:
+            tasks.remove(t)
+
+    def start_book_feed(ex: str, sym: str) -> None:
+        start_feed(
+            f"book:{ex}:{sym}",
+            lambda ev: BookFeed(ex, [sym], markets_list=venue_markets.get(ex)).run(bus, ev),
+        )
+
+    def start_funding_feed(ex: str, sym: str) -> None:
+        start_feed(
+            f"fund:{ex}:{sym}",
+            lambda ev: FundingPoller(ex, [sym], markets_list=venue_markets.get(ex)).run(bus, ev),
+        )
 
     books_q = bus.subscribe(BOOKS_TOPIC)
     funding_q = bus.subscribe(FUNDING_TOPIC)
@@ -254,6 +276,89 @@ async def run() -> None:
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, stop.set)
+
+    def reconcile_feeds(eligible: set[str]) -> None:
+        """Start/stop feeds so exactly the eligible perps (+ their spot legs
+        + anything with an open carry) are subscribed."""
+        keys = set(eligible)
+        for c in open_carries.values():  # never unsubscribe an open carry
+            keys.add(c.perp_key)
+            keys.add(c.spot_key)
+        for base in scr.eligible_bases(eligible):
+            sym = settings.spot_symbol_for_base(base) or f"{base}/USD"
+            keys.add(f"{spot_ex}:{sym}")
+        books_wanted = set()
+        funds_wanted = set()
+        for key in keys:
+            ex, sym = key.split(":", 1)
+            books_wanted.add((ex, sym))
+            if ex != spot_ex:
+                funds_wanted.add((ex, sym))
+        wanted = {f"book:{e}:{s_}" for e, s_ in books_wanted} | {
+            f"fund:{e}:{s_}" for e, s_ in funds_wanted
+        }
+        for name in list(feed_tasks):
+            if name not in wanted:
+                logger.info("screener: stopping feed %s", name)
+                stop_feed(name)
+        for ex, sym in sorted(books_wanted):
+            if f"book:{ex}:{sym}" not in feed_tasks:
+                start_book_feed(ex, sym)
+        for ex, sym in sorted(funds_wanted):
+            if f"fund:{ex}:{sym}" not in feed_tasks:
+                start_funding_feed(ex, sym)
+
+    async def screener_loop() -> None:
+        """Periodic re-selection of eligible perps (public data, no keys)."""
+        hyst = scr.load_state(settings.screener_state_path)
+        # configured pairs are protected from the cut (user decision, e.g.
+        # SOL is OKX-only on purpose): snapshot them before they can mutate
+        seeded_keys = set(carry_ctx.eligible or set())
+        for key in seeded_keys:
+            hyst.seed(key)
+        await asyncio.sleep(60)  # let the feeds warm up first
+        while not stop.is_set():
+            try:
+                spot_bases = await screener_io.fetch_kraken_spot_bases()
+                min_vol = float(settings.screener_min_volume_usd)
+                raw = await screener_io.fetch_okx_xperp_metrics(
+                    min_volume_usd=min_vol, bases=spot_bases)
+                raw += await screener_io.fetch_krakenfutures_metrics(
+                    min_volume_usd=min_vol, bases=spot_bases)
+                new_eligible = scr.run_sweep(
+                    [scr.from_raw(r) for r in raw],
+                    hyst,
+                    min_volume_usd=D(settings.screener_min_volume_usd),
+                    min_positive_pct=D(settings.screener_min_positive_pct),
+                    cost_bps_for=lambda ex: scr.roundtrip_cost_bps(
+                        D(settings.taker_fee_for(spot_ex)),
+                        D(settings.taker_fee_for(ex)),
+                        D(settings.slippage_buffer_bps),
+                    ),
+                    spot_bases=spot_bases,
+                    whitelist_keys=seeded_keys,
+                    blacklist_keys=settings.screener_blacklist_keys,
+                )
+                if new_eligible and new_eligible != (carry_ctx.eligible or set()):
+                    logger.info("screener eligible: %s", sorted(new_eligible))
+                    if carry_ctx.eligible is not None:
+                        carry_ctx.eligible.clear()
+                        carry_ctx.eligible.update(new_eligible)
+                    if uta_state is not None:
+                        n = max(1, len(scr.eligible_bases(new_eligible)))
+                        carry_ctx.notional = uta_state.notional / n
+                    reconcile_feeds(new_eligible)
+                scr.save_state(settings.screener_state_path, hyst)
+            except Exception as exc:
+                logger.warning("screener sweep failed: %s", exc)
+            try:
+                await asyncio.wait_for(stop.wait(), timeout=settings.screener_interval_s)
+            except asyncio.TimeoutError:
+                pass
+
+    reconcile_feeds(carry_ctx.eligible or set())
+    if settings.screener_enabled:
+        tasks.append(asyncio.create_task(screener_loop()))
 
     async def close_carry(key: str, carry: OpenCarry, reason: str) -> None:
         nonlocal realized_pnl

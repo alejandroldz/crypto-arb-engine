@@ -31,8 +31,9 @@ class Settings(BaseSettings):
     # margined expiry futures with perp-style 8h funding, NOT the global
     # inverse swap BTC/USD:BTC. ccxt symbol for BTC-USD_UM_XPERP-310404:
     # exchange -> perp symbols (';' separates exchanges). SOL trades only
-    # on OKX: its Kraken Futures funding history is negative (300 intervals,
-    # verified 2026-11-13).
+    # on OKX: on Kraken its funding is weak/unstable (~1.2% APR, 59%
+    # positive intervals, 30d) vs OKX (~9.9% APR, 97%) - verified 2026-11-13.
+    # NOTE: krakenfutures PF perps pay funding HOURLY, okx every 8h.
     perp_symbol_map: str = (
         "krakenfutures:BTC/USD:USD,ETH/USD:USD;"
         "okx:BTC/USD:USD-310404,ETH/USD:USD-310404,SOL/USD:USD-310404"
@@ -49,6 +50,11 @@ class Settings(BaseSettings):
     default_taker_fee_bps: Decimal = Decimal("40")
     # minimum funding-rate history samples before approving a carry
     min_funding_history: int = 30
+
+    # funding payment interval per venue (hours): krakenfutures PF perps pay
+    # hourly, OKX X-Perps every 8h - economics must scale by this or Kraken
+    # funding is underestimated 8x (found 2026-11-13)
+    funding_interval_hours: str = "krakenfutures:1,okx:8"
 
     # staleness gate (RISK 3)
     max_data_age_ms_funding: int = 2000
@@ -93,6 +99,15 @@ class Settings(BaseSettings):
     # emergency path exercisable (documented fallback, not exchange data)
     sim_maintenance_margin_rate: Decimal = Decimal("0.25")
 
+    # screener: periodic re-selection of eligible perps (public data only)
+    screener_enabled: bool = True
+    screener_interval_s: int = 14400  # 4h; funding moves on 8h intervals
+    screener_min_volume_usd: Decimal = Decimal("10000000")
+    screener_min_positive_pct: Decimal = Decimal("0.60")
+    # configured perp keys are always eligible (seeded), blacklist keys never are
+    screener_blacklist: str = ""
+    screener_state_path: str = "screener_state.json"
+
     # optional read-only API keys for real account health (never trading)
     krakenfutures_api_key: str = ""
     krakenfutures_api_secret: str = ""
@@ -122,6 +137,8 @@ class Settings(BaseSettings):
         "max_account_mmr_warning",
         "max_account_mmr_emergency_unwind",
         "sim_maintenance_margin_rate",
+        "screener_min_volume_usd",
+        "screener_min_positive_pct",
         mode="before",
     )
     @classmethod
@@ -220,6 +237,18 @@ class Settings(BaseSettings):
         for ex in self.perp_exchange_list:
             out.extend(self.perp_symbols_for(ex))
         return out
+
+    @property
+    def screener_blacklist_keys(self) -> set[str]:
+        return {k.strip() for k in self.screener_blacklist.split(",") if k.strip()}
+
+    def funding_interval_h_for(self, exchange: str) -> Decimal:
+        for pair in self.funding_interval_hours.split(","):
+            if ":" in pair:
+                ex, hours = pair.split(":", 1)
+                if ex.strip() == exchange:
+                    return D(hours.strip())
+        return Decimal("8")
 
     def spot_symbol_for_base(self, base: str) -> str | None:
         """Configured spot symbol for a base asset, e.g. ETH -> ETH/USD."""
