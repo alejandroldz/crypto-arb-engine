@@ -529,3 +529,30 @@ client_session: <aiohttp.client.ClientSession object at 0x7f27f30ec6b0>
 2026-11-13 19:13:10,194 ccxt.base.exchange WARNING krakenfutures requires to release all resources with an explicit call to the .close() coroutine. If you are using the exchange instance with async coroutines, add `await exchange.close()` to your code into a place when you're done with the exchange and don't need the exchange instance anymore (at the end of your async coroutine).
 2026-11-13 19:13:10,194 asyncio ERROR Unclosed client session
 client_session: <aiohttp.client.ClientSession object at 0x7f27f07aff50>
+2026-11-13 19:13:23,679 main INFO seeded 1073 funding samples from funding_log.csv
+2026-11-13 19:13:24,957 main WARNING kraken spot fees NOT auto-detectable (falta kraken_spot_api_key read-only): usando fallback config 80 bps
+2026-11-13 19:13:24,957 app.engines.fee_oracle INFO fees kraken: config fallback (sin fetcher ni cache)
+2026-11-13 19:13:25,188 app.engines.fee_oracle INFO fees okx: maker 2.0000 bps, taker 5.0000 bps (api)
+2026-11-13 19:13:25,836 app.engines.fee_oracle INFO fees krakenfutures: maker 2.00 bps, taker 5.00 bps (api)
+2026-11-13 19:13:26,554 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 19:13:27,049 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 19:14:13,717 main INFO seeded 8 funding samples from funding_log.csv
+2026-11-13 19:14:15,295 main WARNING kraken spot fees NOT auto-detectable (falta kraken_spot_api_key read-only): usando fallback config 80 bps
+2026-11-13 19:14:15,611 app.engines.fee_oracle INFO fees okx: maker 2.0000 bps, taker 5.0000 bps (api)
+2026-11-13 19:14:15,611 app.engines.fee_oracle INFO fees kraken: config fallback (sin fetcher ni cache)
+2026-11-13 19:14:16,534 app.engines.fee_oracle INFO fees krakenfutures: maker 2.00 bps, taker 5.00 bps (api)
+2026-11-13 19:14:17,287 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 19:14:18,006 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 19:15:17,435 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 19:15:18,047 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 19:15:49,152 main WARNING funding source mismatch okx:SOL/USD:USD-310404: screener mean 0.000089010610287757 vs polled mean 0.000009559719532708465608465608466 - entries quarantined
+2026-11-13 19:15:49,219 main WARNING funding source mismatch okx:ETH/USD:USD-310404: screener mean 0.00009378920274981301 vs polled mean 0.00002047545102290264550264550265 - entries quarantined
+2026-11-13 19:15:50,414 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000002879983495358392 vs polled mean -0.000006073122905224712765957446809 - entries quarantined
+2026-11-13 19:16:17,961 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 19:16:18,696 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 19:16:19,343 main WARNING funding source mismatch okx:SOL/USD:USD-310404: screener mean 0.000089010610287757 vs polled mean 0.000009666872551408947368421052632 - entries quarantined
+2026-11-13 19:16:19,532 main WARNING funding source mismatch okx:ETH/USD:USD-310404: screener mean 0.00009378920274981301 vs polled mean 0.00002054462292053105263157894737 - entries quarantined
+2026-11-13 19:16:21,635 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000002879983495358392 vs polled mean -0.000006074943583899756613756613757 - entries quarantined
+2026-11-13 19:16:50,231 main WARNING funding source mismatch okx:ETH/USD:USD-310404: screener mean 0.00009378920274981301 vs polled mean 0.00002054462292053105263157894737 - entries quarantined
+2026-11-13 19:16:50,290 main WARNING funding source mismatch okx:SOL/USD:USD-310404: screener mean 0.000089010610287757 vs polled mean 0.000009666872551408947368421052632 - entries quarantined
+2026-11-13 19:16:52,423 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000002879983495358392 vs polled mean -0.000006076747847183221052631578947 - entries quarantined
