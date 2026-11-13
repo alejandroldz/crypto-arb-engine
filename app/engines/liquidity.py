@@ -82,7 +82,9 @@ def vwap_for_quote(
         used += 1
         worst = lvl.price
 
-    fully = remaining <= ZERO
+    # fuzz F5: a non-positive request "filled" instantly with vwap=None and
+    # executable=True, violating the contract and crashing callers' asserts
+    fully = remaining <= ZERO and D(quote_size) > ZERO
     vwap = div(filled_quote, base) if base > ZERO else None
     executable = fully and mul(depth, haircut) >= quote_size
     return VwapResult(
@@ -129,7 +131,8 @@ def vwap_for_base(
         used += 1
         worst = lvl.price
 
-    fully = remaining <= ZERO
+    # fuzz F5: same contract for base-sized requests
+    fully = remaining <= ZERO and D(base_qty) > ZERO
     vwap = div(quote, filled_base) if filled_base > ZERO else None
     # depth rule applied to the quote notional we intend to move
     executable = fully and mul(depth, haircut) >= quote

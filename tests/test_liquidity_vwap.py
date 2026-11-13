@@ -108,3 +108,13 @@ def test_vwap_bounds_property(ask_prices, ask_qtys, quote):
         assert r.vwap <= r.worst_price + eps
         assert r.slippage_bps >= 0
         assert r.filled_quote <= D(quote)
+
+
+def test_non_positive_size_is_not_executable():
+    book = make_book(bids=[("99", "5")], asks=[("101", "5")])
+    r = vwap_for_quote(book, "buy", D("0"), D("0.5"))
+    assert not r.executable and not r.fully_filled and r.vwap is None
+    r = vwap_for_quote(book, "buy", D("-10"), D("0.5"))
+    assert not r.executable and r.vwap is None
+    r = vwap_for_base(book, "sell", D("0"), D("0.5"))
+    assert not r.executable and not r.fully_filled and r.vwap is None
