@@ -360,6 +360,7 @@ class PpPosition:
     # event consume the whole elapsed window and zeroed the other leg
     last_accrual_ns_long: int
     last_accrual_ns_short: int
+    accrual_uncertain: bool = False  # op.#14: gap-capped accrual, alerted
 
 
 @dataclass
@@ -535,6 +536,18 @@ async def pp_handle_funding(ctx: PpContext, rate: FundingRate) -> None:
         if sign is None:
             continue
         elapsed_h = D(now_ns - watermark) / D(NS_PER_HOUR)
+        if elapsed_h > interval_h * 2 and not pos.accrual_uncertain:
+            # op.#14: the cap below silently dropped real elapsed time;
+            # flag it once instead of hiding the undercount
+            pos.accrual_uncertain = True
+            logger.warning(
+                "pp accrual uncertain %s: %sh gap exceeds 2 intervals",
+                pos.short_key, elapsed_h,
+            )
+            await ctx.notifier.send(
+                f"PP ACCRUAL UNCERTAIN {pos.short_key}: gap de proceso "
+                "(devengo capado a 2 intervalos)"
+            )
         elapsed_h = min(elapsed_h, interval_h * 2)  # suspension gaps don't mint yield
         if elapsed_h > 0:
             accrual = sign * mul(mul(D(pos.opp.notional), D(rate.rate)), elapsed_h / interval_h)

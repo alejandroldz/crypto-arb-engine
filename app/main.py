@@ -429,7 +429,9 @@ async def run() -> None:
                     ),
             funding_collected=D(pos.funding_collected),
             last_payment_ts=None,  # unknown: first payment after restart is flagged
-            accrual_uncertain=True,
+            # op.#14: False = "not yet alerted". Recovery used to set True,
+            # which silenced the one-time uncertainty warning forever.
+            accrual_uncertain=False,
             uta=uta_state,
         )
         logger.info("recovered open position %s (%s)", pos.id, perp_key)
@@ -545,9 +547,22 @@ async def run() -> None:
                 long_key=pos.spot_symbol,
                 short_key=short_key,
                 funding_collected_net=D(pos.funding_collected),
-                opened_ns=now_ns,  # restart resets the holding clock
+                # op.#14: the holding clock survives restarts (durable
+                # opened_at), it does not restart from zero
+                opened_ns=now_ns - min(
+                    int((datetime.now(timezone.utc) - pos.opened_at.replace(
+                        tzinfo=pos.opened_at.tzinfo or timezone.utc
+                    )).total_seconds() * 1e9),
+                    now_ns,
+                ),
+                # watermarks at now: downtime accrues NOTHING (conservative),
+                # and the user hears about it instead of it passing silently
                 last_accrual_ns_long=now_ns,
                 last_accrual_ns_short=now_ns,
+            )
+            await notifier.send(
+                f"PP RECOVERED pos {pos.id} {pair_key}: devengo durante el "
+                "downtime NO contabilizado (conservador); holding conservado"
             )
             logger.info("recovered pp position %s (%s)", pos.id, pair_key)
 

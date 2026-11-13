@@ -406,3 +406,27 @@ async def test_pp_entries_respect_eligibility_blacklist(tmp_path):
         tmp_path, "t2.sqlite", entry_allowed=lambda key: False)
     await pp_handle_funding(ctx2, await _fund_evt())
     assert ctx2.open == {}
+
+
+async def test_pp_gap_capped_accrual_flagged_once(tmp_path):
+    """op.#14: a process gap that caps accrual at 2 intervals is flagged
+    and alerted exactly once, not silently undercounted."""
+    ctx, repo = await _ctx_with_position(tmp_path)
+    pos = ctx.open["BTC:krakenfutures->okx"]
+    # short watermark 10 hourly intervals in the past (krakenfutures = 1h)
+    gap_ns = 10 * NS_PER_HOUR
+    pos.last_accrual_ns_short = time.monotonic_ns() - gap_ns
+    evt = FundingRate(exchange="okx", symbol=SHORT[1], rate=D("0.0008"),
+                      local_ts_ns=time.monotonic_ns())
+    # okx interval is 8h; 10h < 16h: NOT capped -> no flag
+    await pp_handle_funding(ctx, evt)
+    assert not pos.accrual_uncertain
+    # now force a real gap on the 8h venue: 20h > 2*8h
+    pos.last_accrual_ns_short = time.monotonic_ns() - 20 * NS_PER_HOUR
+    await pp_handle_funding(ctx, evt)
+    assert pos.accrual_uncertain
+    assert any("ACCRUAL UNCERTAIN" in m for m in ctx.notifier.sent)
+    n = len(ctx.notifier.sent)
+    pos.last_accrual_ns_short = time.monotonic_ns() - 20 * NS_PER_HOUR
+    await pp_handle_funding(ctx, evt)  # no second alert for the same episode
+    assert len(ctx.notifier.sent) == n
