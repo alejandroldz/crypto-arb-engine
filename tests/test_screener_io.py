@@ -52,3 +52,42 @@ async def test_kraken_history_window_is_latest_not_oldest(monkeypatch):
     assert m.funding_mean == pytest.approx(statistics.fmean(latest))
     # the stale-window bug gave the mean of the FIRST 720 (mostly +0.001)
     assert m.funding_mean < 0
+
+
+@pytest.mark.asyncio
+async def test_okx_volume_24h_is_usd_not_contracts(monkeypatch):
+    """dif D1: OKX FUTURES vol24h is contracts; USD volume = volCcy24h*last."""
+    instruments = [{
+        "instId": "BTC-USD-261120", "ruleType": "xperp", "state": "live",
+        "ctVal": "0.0001",
+    }]
+    tickers = {"BTC-USD-261120": {
+        "instId": "BTC-USD-261120", "vol24h": "81162014",
+        "volCcy24h": "8116.2014", "last": "68746.4",
+    }}
+    hist = [{"fundingRate": "0.0001"}] * 100
+
+    class _OKXResp(_Resp):
+        pass
+
+    class _OKXSession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        def get(self, url, params=None):
+            if "instruments" in url:
+                return _OKXResp({"data": instruments})
+            if "tickers" in url:
+                return _OKXResp({"data": list(tickers.values())})
+            if "funding-rate-history" in url:
+                return _OKXResp({"data": hist})
+            raise AssertionError(url)
+
+    monkeypatch.setattr(screener_io.aiohttp, "ClientSession", lambda: _OKXSession())
+    (m,) = await screener_io.fetch_okx_xperp_metrics()
+    # 8116.2014 * 68746.4 ~ 558M USD; the bug reported 81.2M (raw contracts)
+    assert m.volume_24h_usd == pytest.approx(8116.2014 * 68746.4, rel=1e-6)
+    assert m.volume_24h_usd > 5e8

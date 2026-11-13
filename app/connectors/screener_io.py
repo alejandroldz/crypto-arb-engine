@@ -61,9 +61,14 @@ async def fetch_okx_xperp_metrics(history_limit: int = 100,
                 continue
             base, symbol = parsed
             tick = tickers.get(inst["instId"], {})
-            # X-Perp contracts are 1 USD: vol24h (contracts) = USD volume
+            # dif D1: OKX vol24h is in CONTRACTS (ctVal base units each),
+            # NOT USD. USD volume = volCcy24h * last (fallback vol24h*ctVal*last).
             try:
-                volume = float(tick.get("vol24h", 0) or 0)
+                vol_ccy = float(tick.get("volCcy24h", 0) or 0)
+                last = float(tick.get("last", 0) or 0)
+                ct_val = float(inst.get("ctVal", 0) or 0)
+                vol_ct = float(tick.get("vol24h", 0) or 0)
+                volume = vol_ccy * last if vol_ccy > 0 else vol_ct * ct_val * last
             except (TypeError, ValueError):
                 volume = 0.0
             # cheap filters first: funding history costs one request each
