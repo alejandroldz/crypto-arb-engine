@@ -65,3 +65,98 @@ client_session: <aiohttp.client.ClientSession object at 0x7efdb30c5280>
 2026-11-13 14:28:17,082 main INFO real account health krakenfutures: equity 0 mmr 0
 2026-11-13 14:28:17,693 main INFO real account health okx: equity 0 mmr 0
 2026-11-13 14:35:38,511 ingestion WARNING book feed krakenfutures BTC/USD:USD: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-13 14:35:39,219 ingestion WARNING book feed kraken BTC/USD: RequestTimeout: Connection to wss://ws.kraken.com/v2 timed out due to a ping-pong keepalive missing on time
+2026-11-13 14:35:40,907 ingestion WARNING book feed okx BTC/USD:USD-310404: RequestTimeout: Connection to wss://ws.okx.com:443/ws/v5/public timed out due to a ping-pong keepalive missing on time
+2026-11-13 14:36:11,874 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 14:36:12,524 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 14:37:12,318 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 14:37:13,037 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 14:47:19,633 ingestion WARNING book feed okx BTC/USD:USD-310404: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-13 14:47:19,634 ingestion WARNING book feed krakenfutures BTC/USD:USD: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-13 14:47:22,000 ingestion WARNING book feed kraken BTC/USD: RequestTimeout: Connection to wss://ws.kraken.com/v2 timed out due to a ping-pong keepalive missing on time
+2026-11-13 14:47:27,321 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 14:47:27,939 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 14:51:29,569 ingestion WARNING book feed krakenfutures BTC/USD:USD: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-13 14:51:31,553 ingestion WARNING book feed okx BTC/USD:USD-310404: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-13 14:51:35,203 ingestion WARNING book feed kraken BTC/USD: RequestTimeout: Connection to wss://ws.kraken.com/v2 timed out due to a ping-pong keepalive missing on time
+2026-11-13 14:52:18,692 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 14:52:19,510 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 14:58:47,713 ingestion WARNING book feed krakenfutures BTC/USD:USD: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-13 14:58:51,300 ingestion WARNING book feed kraken BTC/USD: RequestTimeout: Connection to wss://ws.kraken.com/v2 timed out due to a ping-pong keepalive missing on time
+2026-11-13 14:58:52,499 ingestion WARNING book feed okx BTC/USD:USD-310404: RequestTimeout: Connection to wss://ws.okx.com:443/ws/v5/public timed out due to a ping-pong keepalive missing on time
+2026-11-13 14:59:43,224 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 14:59:44,014 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 15:00:43,755 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 15:00:44,635 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 15:01:43,748 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 15:01:44,718 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 15:02:44,101 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 15:02:45,008 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 15:03:44,206 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 15:03:44,777 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 15:04:44,383 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 15:04:45,126 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 15:05:44,508 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 15:05:45,247 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 15:06:44,935 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 15:06:45,653 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 15:07:44,899 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 15:07:45,442 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 15:08:45,017 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 15:08:45,687 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 15:09:08,317 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 15:09:08,792 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 15:10:08,818 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 15:10:09,483 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 15:10:58,777 ccxt.base.exchange WARNING krakenfutures requires to release all resources with an explicit call to the .close() coroutine. If you are using the exchange instance with async coroutines, add `await exchange.close()` to your code into a place when you're done with the exchange and don't need the exchange instance anymore (at the end of your async coroutine).
+2026-11-13 15:10:58,777 ccxt.base.exchange WARNING kraken requires to release all resources with an explicit call to the .close() coroutine. If you are using the exchange instance with async coroutines, add `await exchange.close()` to your code into a place when you're done with the exchange and don't need the exchange instance anymore (at the end of your async coroutine).
+2026-11-13 15:10:58,777 ccxt.base.exchange WARNING kraken requires to release all resources with an explicit call to the .close() coroutine. If you are using the exchange instance with async coroutines, add `await exchange.close()` to your code into a place when you're done with the exchange and don't need the exchange instance anymore (at the end of your async coroutine).
+2026-11-13 15:10:58,777 ccxt.base.exchange WARNING kraken requires to release all resources with an explicit call to the .close() coroutine. If you are using the exchange instance with async coroutines, add `await exchange.close()` to your code into a place when you're done with the exchange and don't need the exchange instance anymore (at the end of your async coroutine).
+2026-11-13 15:10:58,778 ccxt.base.exchange WARNING okx requires to release all resources with an explicit call to the .close() coroutine. If you are using the exchange instance with async coroutines, add `await exchange.close()` to your code into a place when you're done with the exchange and don't need the exchange instance anymore (at the end of your async coroutine).
+2026-11-13 15:10:58,778 ccxt.base.exchange WARNING okx requires to release all resources with an explicit call to the .close() coroutine. If you are using the exchange instance with async coroutines, add `await exchange.close()` to your code into a place when you're done with the exchange and don't need the exchange instance anymore (at the end of your async coroutine).
+2026-11-13 15:10:58,778 ccxt.base.exchange WARNING okx requires to release all resources with an explicit call to the .close() coroutine. If you are using the exchange instance with async coroutines, add `await exchange.close()` to your code into a place when you're done with the exchange and don't need the exchange instance anymore (at the end of your async coroutine).
+2026-11-13 15:10:58,778 ccxt.base.exchange WARNING krakenfutures requires to release all resources with an explicit call to the .close() coroutine. If you are using the exchange instance with async coroutines, add `await exchange.close()` to your code into a place when you're done with the exchange and don't need the exchange instance anymore (at the end of your async coroutine).
+2026-11-13 15:10:58,778 asyncio ERROR Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x7f678241ee40>
+2026-11-13 15:10:58,778 asyncio ERROR Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x7f67a012fa40>
+2026-11-13 15:10:58,778 asyncio ERROR Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x7f67a0135af0>
+2026-11-13 15:10:58,778 asyncio ERROR Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x7f67a0137860>
+2026-11-13 15:10:58,778 asyncio ERROR Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x7f67a01c2870>
+2026-11-13 15:10:58,778 asyncio ERROR Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x7f67a01df080>
+2026-11-13 15:10:58,778 asyncio ERROR Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x7f67a48f7470>
+2026-11-13 15:10:58,778 asyncio ERROR Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x7f678243f8c0>
+2026-11-13 15:11:03,306 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 15:11:03,825 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 15:11:40,776 ccxt.base.exchange WARNING krakenfutures requires to release all resources with an explicit call to the .close() coroutine. If you are using the exchange instance with async coroutines, add `await exchange.close()` to your code into a place when you're done with the exchange and don't need the exchange instance anymore (at the end of your async coroutine).
+2026-11-13 15:11:40,776 ccxt.base.exchange WARNING kraken requires to release all resources with an explicit call to the .close() coroutine. If you are using the exchange instance with async coroutines, add `await exchange.close()` to your code into a place when you're done with the exchange and don't need the exchange instance anymore (at the end of your async coroutine).
+2026-11-13 15:11:40,776 ccxt.base.exchange WARNING kraken requires to release all resources with an explicit call to the .close() coroutine. If you are using the exchange instance with async coroutines, add `await exchange.close()` to your code into a place when you're done with the exchange and don't need the exchange instance anymore (at the end of your async coroutine).
+2026-11-13 15:11:40,776 ccxt.base.exchange WARNING kraken requires to release all resources with an explicit call to the .close() coroutine. If you are using the exchange instance with async coroutines, add `await exchange.close()` to your code into a place when you're done with the exchange and don't need the exchange instance anymore (at the end of your async coroutine).
+2026-11-13 15:11:40,776 ccxt.base.exchange WARNING okx requires to release all resources with an explicit call to the .close() coroutine. If you are using the exchange instance with async coroutines, add `await exchange.close()` to your code into a place when you're done with the exchange and don't need the exchange instance anymore (at the end of your async coroutine).
+2026-11-13 15:11:40,776 ccxt.base.exchange WARNING okx requires to release all resources with an explicit call to the .close() coroutine. If you are using the exchange instance with async coroutines, add `await exchange.close()` to your code into a place when you're done with the exchange and don't need the exchange instance anymore (at the end of your async coroutine).
+2026-11-13 15:11:40,776 ccxt.base.exchange WARNING okx requires to release all resources with an explicit call to the .close() coroutine. If you are using the exchange instance with async coroutines, add `await exchange.close()` to your code into a place when you're done with the exchange and don't need the exchange instance anymore (at the end of your async coroutine).
+2026-11-13 15:11:40,776 ccxt.base.exchange WARNING krakenfutures requires to release all resources with an explicit call to the .close() coroutine. If you are using the exchange instance with async coroutines, add `await exchange.close()` to your code into a place when you're done with the exchange and don't need the exchange instance anymore (at the end of your async coroutine).
+2026-11-13 15:11:40,776 asyncio ERROR Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x7f5afef942f0>
+2026-11-13 15:11:40,776 asyncio ERROR Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x7f5b213f5d60>
+2026-11-13 15:11:40,776 asyncio ERROR Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x7f5b213f7a70>
+2026-11-13 15:11:40,776 asyncio ERROR Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x7f5b183c4530>
+2026-11-13 15:11:40,777 asyncio ERROR Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x7f5b1877ea20>
+2026-11-13 15:11:40,777 asyncio ERROR Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x7f5b18797230>
+2026-11-13 15:11:40,777 asyncio ERROR Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x7f5b182cc0b0>
+2026-11-13 15:11:40,777 asyncio ERROR Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x7f5afeff6e40>
+2026-11-13 15:11:44,531 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 15:11:45,012 main INFO real account health okx: equity 0 mmr 0
