@@ -36,7 +36,10 @@ class Position(Base):
     closed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    realized_pnl_eur: Mapped[Decimal | None] = mapped_column(Numeric(38, 8), nullable=True)
+    realized_pnl_usd: Mapped[Decimal | None] = mapped_column(Numeric(38, 8), nullable=True)
+    spot_symbol: Mapped[str] = mapped_column(String(32), default="")
+    holding_intervals: Mapped[int] = mapped_column(Integer, default=90)
+    entry_funding_rate: Mapped[Decimal] = mapped_column(Numeric(38, 18), default=0)
 
 
 class OrderRecord(Base):
@@ -58,7 +61,8 @@ class OrderRecord(Base):
 
 
 class TaxAuditLog(Base):
-    """Immutable AEAT/IRPF traceability log (RISK 7).
+    """Immutable AEAT/IRPF traceability log (RISK 7). USD accounting;
+    EUR conversion for AEAT happens at export time (future).
 
     Every fill is a taxable event in Spain; paired_hedge_id links both legs
     of one carry so losses on one leg are provably tied to gains on the
@@ -74,10 +78,11 @@ class TaxAuditLog(Base):
     symbol: Mapped[str] = mapped_column(String(32))
     side: Mapped[str] = mapped_column(String(8))
     amount: Mapped[Decimal] = mapped_column(Numeric(38, 18))
-    price_eur_equivalent: Mapped[Decimal] = mapped_column(Numeric(38, 18))
+    price_usd_equivalent: Mapped[Decimal] = mapped_column(Numeric(38, 18))
     fee_amount: Mapped[Decimal] = mapped_column(Numeric(38, 18))
     fee_currency: Mapped[str] = mapped_column(String(8))
     timestamp_utc: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
     )
-    net_pnl_eur: Mapped[Decimal | None] = mapped_column(Numeric(38, 8), nullable=True)
+    net_pnl_usd: Mapped[Decimal | None] = mapped_column(Numeric(38, 8), nullable=True)
+    kind: Mapped[str] = mapped_column(String(8), default="paper")  # paper / live

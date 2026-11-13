@@ -34,7 +34,12 @@ class Settings(BaseSettings):
     min_net_profit_usd: Decimal = Decimal("5")
     slippage_buffer_bps: Decimal = Decimal("5")
     liquidity_haircut: Decimal = Decimal("0.50")
-    default_taker_fee_bps: Decimal = Decimal("10")
+    # per-venue taker fees in bps (worst-case retail tier; user must verify
+    # their own tier). kraken spot taker is far pricier than perp venues.
+    taker_fee_bps: str = "kraken:40,krakenfutures:5,deribit:5"
+    default_taker_fee_bps: Decimal = Decimal("40")
+    # minimum funding-rate history samples before approving a carry
+    min_funding_history: int = 30
 
     # staleness gate (RISK 3)
     max_data_age_ms_funding: int = 2000
@@ -48,7 +53,7 @@ class Settings(BaseSettings):
     liquidation_buffer_pct: Decimal = Decimal("15")
 
     # circuit breaker (RISK 6)
-    max_daily_loss_eur: Decimal = Decimal("25")
+    max_daily_loss_usd: Decimal = Decimal("25")
     cb_max_consecutive_failures: int = 3
     cb_max_orders_per_window: int = 5
     cb_order_window_seconds: int = 60
@@ -58,7 +63,7 @@ class Settings(BaseSettings):
     duckdb_path: str = "./arb_ticks.duckdb"
 
     # paper trading
-    paper_start_balance_eur: Decimal = Decimal("10000")
+    paper_start_balance_usd: Decimal = Decimal("10000")
 
     # telegram alerts
     telegram_bot_token: str = ""
@@ -71,8 +76,8 @@ class Settings(BaseSettings):
         "default_taker_fee_bps",
         "max_leverage",
         "liquidation_buffer_pct",
-        "max_daily_loss_eur",
-        "paper_start_balance_eur",
+        "max_daily_loss_usd",
+        "paper_start_balance_usd",
         mode="before",
     )
     @classmethod
@@ -100,6 +105,18 @@ class Settings(BaseSettings):
     @property
     def perp_exchange_list(self) -> list[str]:
         return [e.strip() for e in self.perp_exchanges.split(",") if e.strip()]
+
+    @property
+    def taker_fee_bps_map(self) -> dict[str, Decimal]:
+        out: dict[str, Decimal] = {}
+        for pair in self.taker_fee_bps.split(","):
+            if ":" in pair:
+                venue, bps = pair.split(":", 1)
+                out[venue.strip()] = D(bps.strip())
+        return out
+
+    def taker_fee_for(self, exchange: str) -> Decimal:
+        return self.taker_fee_bps_map.get(exchange, self.default_taker_fee_bps)
 
     @property
     def spot_symbol_list(self) -> list[str]:

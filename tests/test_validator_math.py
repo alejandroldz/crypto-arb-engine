@@ -8,31 +8,52 @@ from app.engines.validator import (
     funding_roundtrip_costs,
 )
 
+SPOT_FEE = D("40")  # kraken spot taker, worst tier
+PERP_FEE = D("5")  # krakenfutures/deribit taker
+BUFFER = D("5")
 
-def test_funding_math():
-    # 1000 notional, 0.01% funding per 8h, 10 bps taker, 5 bps buffer
+
+def test_funding_math_per_venue_fees():
     payout = funding_payout_per_interval(D("1000"), D("0.0001"))
     assert payout == D("0.1")
     costs = funding_roundtrip_costs(
-        notional=D("1000"), taker_fee_bps=D("10"), slippage_buffer_bps=D("5")
+        notional=D("1000"),
+        spot_taker_fee_bps=SPOT_FEE,
+        perp_taker_fee_bps=PERP_FEE,
+        slippage_buffer_bps=BUFFER,
     )
-    # turnover 4000 -> fees 4 + buffer 2
-    assert costs == D("6")
+    # spot turnover 2000 * 40bps = 8 ; perp turnover 2000 * 5bps = 1 ; buffer 4000 * 5bps = 2
+    assert costs == D("11")
     be = funding_breakeven_intervals(
         notional=D("1000"),
         funding_rate=D("0.0001"),
-        taker_fee_bps=D("10"),
-        slippage_buffer_bps=D("5"),
+        spot_taker_fee_bps=SPOT_FEE,
+        perp_taker_fee_bps=PERP_FEE,
+        slippage_buffer_bps=BUFFER,
     )
-    assert be == 60  # 6 / 0.1
+    assert be == 110  # 11 / 0.1
     pnl = funding_net_pnl(
         notional=D("1000"),
         funding_rate=D("0.0001"),
-        intervals=90,
-        taker_fee_bps=D("10"),
-        slippage_buffer_bps=D("5"),
+        intervals=150,
+        spot_taker_fee_bps=SPOT_FEE,
+        perp_taker_fee_bps=PERP_FEE,
+        slippage_buffer_bps=BUFFER,
     )
-    assert pnl == D("9") - D("6")
+    assert pnl == D("15") - D("11")
+
+
+def test_spot_fees_dominate_economics():
+    # same rate, cheap-venue fantasy vs real kraken fees: breaks the trade
+    optimistic = funding_roundtrip_costs(
+        notional=D("1000"), spot_taker_fee_bps=D("5"),
+        perp_taker_fee_bps=D("5"), slippage_buffer_bps=D("0"),
+    )
+    realistic = funding_roundtrip_costs(
+        notional=D("1000"), spot_taker_fee_bps=SPOT_FEE,
+        perp_taker_fee_bps=PERP_FEE, slippage_buffer_bps=D("0"),
+    )
+    assert realistic == D("9") and optimistic == D("2")
 
 
 def test_funding_breakeven_none_on_negative_rate():
@@ -40,14 +61,15 @@ def test_funding_breakeven_none_on_negative_rate():
         funding_breakeven_intervals(
             notional=D("1000"),
             funding_rate=D("-0.0001"),
-            taker_fee_bps=D("10"),
-            slippage_buffer_bps=D("5"),
+            spot_taker_fee_bps=SPOT_FEE,
+            perp_taker_fee_bps=PERP_FEE,
+            slippage_buffer_bps=BUFFER,
         )
         is None
     )
 
 
 def test_approve_trade_strictly_greater():
-    assert not approve_trade(D("5"), D("5")).approved  # equal is not enough
+    assert not approve_trade(D("5"), D("5")).approved
     assert approve_trade(D("5.01"), D("5")).approved
     assert not approve_trade(D("-1"), D("5")).approved

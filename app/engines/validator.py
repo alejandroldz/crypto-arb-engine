@@ -37,12 +37,21 @@ def funding_turnover(notional: Decimal) -> Decimal:
 def funding_roundtrip_costs(
     *,
     notional: Decimal,
-    taker_fee_bps: Decimal,
+    spot_taker_fee_bps: Decimal,
+    perp_taker_fee_bps: Decimal,
     slippage_buffer_bps: Decimal,
 ) -> Decimal:
-    """Worst-case cost of one entry+exit round trip (4 taker fills)."""
-    turnover = funding_turnover(notional)
-    return bps_of(turnover, D(taker_fee_bps)) + bps_of(turnover, D(slippage_buffer_bps))
+    """Worst-case cost of one entry+exit round trip (4 taker fills).
+
+    Two fills happen on the spot venue (buy + sell) and two on the perp
+    venue (open + close short); each venue charges its own taker fee.
+    """
+    spot_turnover = mul(D(notional), D("2"))
+    perp_turnover = mul(D(notional), D("2"))
+    fees = bps_of(spot_turnover, D(spot_taker_fee_bps)) + bps_of(
+        perp_turnover, D(perp_taker_fee_bps)
+    )
+    return fees + bps_of(spot_turnover + perp_turnover, D(slippage_buffer_bps))
 
 
 def funding_payout_per_interval(notional: Decimal, funding_rate: Decimal) -> Decimal:
@@ -55,14 +64,16 @@ def funding_net_pnl(
     notional: Decimal,
     funding_rate: Decimal,
     intervals: int,
-    taker_fee_bps: Decimal,
+    spot_taker_fee_bps: Decimal,
+    perp_taker_fee_bps: Decimal,
     slippage_buffer_bps: Decimal,
 ) -> Decimal:
     """Net PnL of holding the carry for ``intervals`` funding intervals."""
     payout = mul(funding_payout_per_interval(notional, funding_rate), D(intervals))
     return payout - funding_roundtrip_costs(
         notional=notional,
-        taker_fee_bps=taker_fee_bps,
+        spot_taker_fee_bps=spot_taker_fee_bps,
+        perp_taker_fee_bps=perp_taker_fee_bps,
         slippage_buffer_bps=slippage_buffer_bps,
     )
 
@@ -71,7 +82,8 @@ def funding_breakeven_intervals(
     *,
     notional: Decimal,
     funding_rate: Decimal,
-    taker_fee_bps: Decimal,
+    spot_taker_fee_bps: Decimal,
+    perp_taker_fee_bps: Decimal,
     slippage_buffer_bps: Decimal,
 ) -> int | None:
     """Intervals needed to recoup round-trip costs; None if rate <= 0."""
@@ -80,7 +92,8 @@ def funding_breakeven_intervals(
         return None
     costs = funding_roundtrip_costs(
         notional=notional,
-        taker_fee_bps=taker_fee_bps,
+        spot_taker_fee_bps=spot_taker_fee_bps,
+        perp_taker_fee_bps=perp_taker_fee_bps,
         slippage_buffer_bps=slippage_buffer_bps,
     )
     return int(div(costs, payout).to_integral_value(rounding=ROUND_CEILING))

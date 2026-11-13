@@ -1,4 +1,4 @@
-"""Strategy A detector tests."""
+"""Strategy A detector tests: history-gated, pessimistic rate selection."""
 from decimal import Decimal
 
 from hypothesis import given
@@ -6,46 +6,71 @@ from hypothesis import strategies as st
 
 from app.connectors.normalizer import FundingRate
 from app.core.decimals import D
-from app.engines.arbitrage import detect_funding_carry
+from app.engines.arbitrage import detect_funding_carry, funding_rate_stats
 from app.engines.validator import funding_payout_per_interval, funding_roundtrip_costs
 
+HISTORY_3BP = [D("0.0003")] * 30  # 30 samples of 0.03%
 KW = dict(
     notional=D("1000"),
     holding_intervals=90,
-    taker_fee_bps=D("10"),
+    spot_taker_fee_bps=D("40"),
+    perp_taker_fee_bps=D("5"),
     slippage_buffer_bps=D("5"),
     min_net_profit_usd=D("2"),
+    historical_rates=HISTORY_3BP,
+    min_history_samples=30,
 )
 
 
 def funding(rate: str, predicted: str | None = None) -> FundingRate:
     return FundingRate(
-        exchange="bybit",
-        symbol="BTC/USDT:USDT",
+        exchange="deribit",
+        symbol="BTC-PERPETUAL",
         rate=rate,
         predicted_rate=predicted,
         local_ts_ns=1,
     )
 
 
+def test_stats_known_values():
+    stats = funding_rate_stats([D("0.0001"), D("0.0002"), D("0.0003"), D("0.001")])
+    assert stats.samples == 4
+    assert stats.mean == D("0.0004")
+    assert stats.median == D("0.0002")  # nearest-rank p50
+    assert stats.p25 == D("0.0001")
+
+
+def test_stats_empty():
+    assert funding_rate_stats([]) is None
+
+
 def test_detects_profitable_carry():
-    # 0.03% per 8h over 90 intervals: 27 - 6 costs = 21 > 2
+    # effective rate 0.0003, costs 11 USD, payout 0.3/interval * 90 = 27 -> net 16
     opp = detect_funding_carry(funding("0.0003"), **KW)
     assert opp is not None
     assert opp.funding_rate == D("0.0003")
-    assert opp.breakeven_intervals == 20
-    assert opp.projected_net == D("27") - D("6")
+    assert opp.projected_net == D("27") - D("11")
 
 
-def test_predicted_rate_wins_over_current():
-    opp = detect_funding_carry(funding("0.0003", predicted="0.0004"), **KW)
-    assert opp is not None and opp.funding_rate == D("0.0004")
+def test_no_history_no_trade():
+    kw = dict(KW, historical_rates=[])
+    assert detect_funding_carry(funding("0.0003"), **kw) is None
+    kw2 = dict(KW, historical_rates=[D("0.001")] * 29)
+    assert detect_funding_carry(funding("0.0003"), **kw2) is None
+
+
+def test_spike_rejected_by_pessimistic_percentile():
+    # current rate is a 10x spike; history p25 is 0.0003 -> effective 0.0003
+    opp = detect_funding_carry(funding("0.003"), **KW)
+    assert opp is not None and opp.funding_rate == D("0.0003")
+    # and if history says 0 while the spike is live, no trade
+    kw = dict(KW, historical_rates=[D("0")] * 30)
+    assert detect_funding_carry(funding("0.003"), **kw) is None
 
 
 def test_rejects_nonpositive_rate():
     assert detect_funding_carry(funding("0"), **KW) is None
     assert detect_funding_carry(funding("-0.0002"), **KW) is None
-    # current positive but predicted flip to negative -> reject
     assert detect_funding_carry(funding("0.0003", predicted="-0.0001"), **KW) is None
 
 
@@ -55,7 +80,7 @@ def test_rejects_when_net_below_minimum():
 
 
 def test_rejects_when_breakeven_beyond_holding():
-    kw = dict(KW, holding_intervals=5)  # breakeven is 20 intervals
+    kw = dict(KW, holding_intervals=10)  # breakeven is 37 intervals
     assert detect_funding_carry(funding("0.0003"), **kw) is None
 
 
@@ -69,12 +94,14 @@ def test_breakeven_always_recoups_costs(rate: str, notional: str):
     be = funding_breakeven_intervals(
         notional=D(notional),
         funding_rate=D(rate),
-        taker_fee_bps=D("10"),
+        spot_taker_fee_bps=D("40"),
+        perp_taker_fee_bps=D("5"),
         slippage_buffer_bps=D("5"),
     )
     assert be is not None and be >= 1
     payout = funding_payout_per_interval(D(notional), D(rate))
     costs = funding_roundtrip_costs(
-        notional=D(notional), taker_fee_bps=D("10"), slippage_buffer_bps=D("5")
+        notional=D(notional), spot_taker_fee_bps=D("40"),
+        perp_taker_fee_bps=D("5"), slippage_buffer_bps=D("5"),
     )
-    assert payout * be >= costs  # breakeven truly covers costs
+    assert payout * be >= costs

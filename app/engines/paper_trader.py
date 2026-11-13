@@ -3,8 +3,8 @@
 Simulates network latency between signal and fill: after the latency window
 the trade is re-validated against the CURRENT books and priced at the
 post-latency VWAP. If the edge or the depth died during the delay, no paper
-trade happens. All accounting in Decimal; every fill hits SQLite and the
-immutable tax log.
+trade happens. All accounting in Decimal USD; every fill hits SQLite and
+the immutable tax log (marked kind="paper").
 """
 from __future__ import annotations
 
@@ -38,20 +38,30 @@ class PaperTrader:
         repo: Repository,
         *,
         latency_ms: int,
-        taker_fee_bps: Decimal,
-        slippage_buffer_bps: Decimal,
-        liquidity_haircut: Decimal,
-        fee_currency: str = "EUR",
+        spot_taker_fee_bps: Decimal = D("40"),
+        perp_taker_fee_bps: Decimal = D("5"),
+        slippage_buffer_bps: Decimal = D("5"),
+        liquidity_haircut: Decimal = D("0.25"),
+        fee_currency: str = "USD",
     ):
         self.repo = repo
         self.latency_ms = latency_ms
-        self.taker_fee_bps = D(taker_fee_bps)
+        self.spot_taker_fee_bps = D(spot_taker_fee_bps)
+        self.perp_taker_fee_bps = D(perp_taker_fee_bps)
         self.slippage_buffer_bps = D(slippage_buffer_bps)
         self.liquidity_haircut = D(liquidity_haircut)
         self.fee_currency = fee_currency
 
+    def _fee(self, leg: str, notional: Decimal) -> Decimal:
+        bps = self.spot_taker_fee_bps if leg == "spot" else self.perp_taker_fee_bps
+        return bps_of(notional, bps)
+
     async def open_carry(
-        self, opp: FundingOpportunity, books_after_latency: BookSource
+        self,
+        opp: FundingOpportunity,
+        books_after_latency: BookSource,
+        *,
+        spot_symbol: str = "",
     ) -> PaperFill | None:
         """Latency simulation, re-validation, then paper fills on both legs."""
         await asyncio.sleep(self.latency_ms / 1000)
@@ -65,19 +75,20 @@ class PaperTrader:
 
         # delta-neutral: equal base exposure on both legs
         qty = min(buy.base_qty, short.base_qty)
-        spot_cost = mul(qty, buy.vwap)
-        perp_notional = mul(qty, short.vwap)
-        spot_fee = bps_of(spot_cost, self.taker_fee_bps)
-        perp_fee = bps_of(perp_notional, self.taker_fee_bps)
+        spot_fee = self._fee("spot", mul(qty, buy.vwap))
+        perp_fee = self._fee("perp", mul(qty, short.vwap))
 
         position_id = await self.repo.open_position(
             symbol=opp.symbol,
             exchange_spot=spot_book.exchange,
             exchange_perp=perp_book.exchange,
             qty_base=qty,
-            notional=spot_cost,
+            notional=mul(qty, buy.vwap),
             spot_entry_vwap=buy.vwap,
             perp_entry_vwap=short.vwap,
+            spot_symbol=spot_symbol or spot_book.symbol,
+            holding_intervals=opp.holding_intervals,
+            entry_funding_rate=opp.funding_rate,
         )
         now = datetime.now(timezone.utc)
         for leg, exchange, side, vwap, fee in (
@@ -101,11 +112,12 @@ class PaperTrader:
                 symbol=opp.symbol,
                 side=side,
                 amount=qty,
-                price_eur_equivalent=vwap,
+                price_usd_equivalent=vwap,
                 fee_amount=fee,
                 fee_currency=self.fee_currency,
                 timestamp_utc=now,
-                net_pnl_eur=None,
+                net_pnl_usd=None,
+                kind="paper",
             )
         return PaperFill(
             position_id=position_id,
@@ -120,7 +132,7 @@ class PaperTrader:
         funding_collected: Decimal,
         books_after_latency: BookSource,
     ) -> Decimal:
-        """Close both legs after the latency window; return realized PnL (EUR)."""
+        """Close both legs after the latency window; return realized PnL (USD)."""
         await asyncio.sleep(self.latency_ms / 1000)
         spot_book, perp_book = books_after_latency()
 
@@ -132,8 +144,8 @@ class PaperTrader:
         perp_close_cost = cover.filled_quote
         spot_entry_cost = mul(fill.qty_base, fill.spot_vwap)
         perp_entry_proceeds = mul(fill.qty_base, fill.perp_vwap)
-        spot_fee = bps_of(spot_proceeds, self.taker_fee_bps)
-        perp_fee = bps_of(perp_close_cost, self.taker_fee_bps)
+        spot_fee = self._fee("spot", spot_proceeds)
+        perp_fee = self._fee("perp", perp_close_cost)
 
         pnl = (
             D(funding_collected)
@@ -164,11 +176,12 @@ class PaperTrader:
                 symbol=spot_book.symbol,
                 side=side,
                 amount=fill.qty_base,
-                price_eur_equivalent=vwap,
+                price_usd_equivalent=vwap,
                 fee_amount=fee,
                 fee_currency=self.fee_currency,
                 timestamp_utc=now,
-                net_pnl_eur=pnl if leg == "perp" else None,
+                net_pnl_usd=pnl if leg == "perp" else None,
+                kind="paper",
             )
         await self.repo.close_position(fill.position_id, pnl, now)
         return pnl

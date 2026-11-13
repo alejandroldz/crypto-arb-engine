@@ -1,12 +1,13 @@
-"""DuckDB tick store: order book snapshots for later backtesting."""
+"""DuckDB tick store: order book + funding snapshots for analysis/backtesting."""
 from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
+from decimal import Decimal
 
 import duckdb
 
-from app.connectors.normalizer import L2OrderBook
+from app.connectors.normalizer import FundingRate, L2OrderBook
 
 
 class TickStore:
@@ -25,6 +26,18 @@ class TickStore:
             )
             """
         )
+        self._conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS funding_snapshots (
+                ts_utc TIMESTAMP,
+                exchange VARCHAR,
+                symbol VARCHAR,
+                rate DECIMAL(38,18),
+                predicted_rate DECIMAL(38,18),
+                next_funding_ts TIMESTAMP
+            )
+            """
+        )
 
     def record_book(self, book: L2OrderBook) -> None:
         self._conn.execute(
@@ -39,6 +52,30 @@ class TickStore:
                 json.dumps([[str(l.price), str(l.qty)] for l in book.asks]),
             ],
         )
+
+    def record_funding(self, rate: FundingRate) -> None:
+        self._conn.execute(
+            "INSERT INTO funding_snapshots VALUES (?, ?, ?, ?, ?, ?)",
+            [
+                datetime.now(timezone.utc),
+                rate.exchange,
+                rate.symbol,
+                str(rate.rate),
+                str(rate.predicted_rate) if rate.predicted_rate is not None else None,
+                rate.next_funding_ts,
+            ],
+        )
+
+    def funding_history(
+        self, exchange: str, symbol: str, limit: int = 500
+    ) -> list[Decimal]:
+        """Observed funding rates, oldest first, for percentile statistics."""
+        rows = self._conn.execute(
+            "SELECT rate FROM funding_snapshots WHERE exchange = ? AND symbol = ? "
+            "ORDER BY ts_utc DESC LIMIT ?",
+            [exchange, symbol, limit],
+        ).fetchall()
+        return [Decimal(str(r[0])) for r in reversed(rows)]
 
     def recent(self, symbol: str, limit: int = 100) -> list[tuple]:
         return self._conn.execute(

@@ -7,6 +7,7 @@ endpoints are used here - no API keys required for ingestion.
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from datetime import datetime, timezone
 
@@ -14,6 +15,8 @@ import ccxt.pro as ccxtpro
 
 from app.connectors.normalizer import FundingRate, L2OrderBook, OrderBookLevel
 from app.core.events import EventBus
+
+logger = logging.getLogger("ingestion")
 
 BOOKS_TOPIC = "books"
 FUNDING_TOPIC = "funding"
@@ -81,6 +84,7 @@ class BookFeed:
                         self.last_error = None
                     except Exception as exc:  # ccxt NetworkError/ExchangeError
                         self.last_error = f"{type(exc).__name__}: {exc}"
+                        logger.warning("book feed %s %s: %s", self.exchange_id, symbol, self.last_error)
                         await self._rest_once(ex, bus, symbol)
                         await asyncio.sleep(self.rest_backoff_s)
         finally:
@@ -118,6 +122,7 @@ class FundingPoller:
                         self.last_error = None
                     except Exception as exc:
                         self.last_error = f"{type(exc).__name__}: {exc}"
+                        logger.warning("funding poll %s %s: %s", self.exchange_id, symbol, self.last_error)
                 await asyncio.sleep(self.interval_s)
         finally:
             await ex.close()

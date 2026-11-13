@@ -35,13 +35,16 @@ class Repository:
                 symbol=fields["symbol"],
                 exchange_spot=fields["exchange_spot"],
                 exchange_perp=fields["exchange_perp"],
+                spot_symbol=fields.get("spot_symbol", ""),
+                holding_intervals=fields.get("holding_intervals", 90),
+                entry_funding_rate=D(fields.get("entry_funding_rate", "0")),
             )
             s.add(pos)
             await s.commit()
             return pos.id
 
     async def close_position(
-        self, position_id: int, realized_pnl_eur: Decimal, closed_at: datetime
+        self, position_id: int, realized_pnl_usd: Decimal, closed_at: datetime
     ) -> None:
         async with self._session() as s:
             pos = await s.get(Position, position_id)
@@ -49,7 +52,7 @@ class Repository:
                 raise KeyError(f"position {position_id} not found")
             pos.status = "closed"
             pos.closed_at = closed_at
-            pos.realized_pnl_eur = D(realized_pnl_eur)
+            pos.realized_pnl_usd = D(realized_pnl_usd)
             await s.commit()
 
     async def add_funding(self, position_id: int, amount: Decimal) -> None:
@@ -86,11 +89,12 @@ class Repository:
         symbol: str,
         side: str,
         amount: Decimal,
-        price_eur_equivalent: Decimal,
+        price_usd_equivalent: Decimal,
         fee_amount: Decimal,
         fee_currency: str,
         timestamp_utc: datetime,
-        net_pnl_eur: Decimal | None,
+        net_pnl_usd: Decimal | None,
+        kind: str = "paper",
     ) -> None:
         """Append-only insert into the immutable tax log (RISK 7)."""
         async with self._session() as s:
@@ -102,11 +106,12 @@ class Repository:
                     symbol=symbol,
                     side=side,
                     amount=D(amount),
-                    price_eur_equivalent=D(price_eur_equivalent),
+                    price_usd_equivalent=D(price_usd_equivalent),
                     fee_amount=D(fee_amount),
                     fee_currency=fee_currency,
                     timestamp_utc=timestamp_utc,
-                    net_pnl_eur=D(net_pnl_eur) if net_pnl_eur is not None else None,
+                    net_pnl_usd=D(net_pnl_usd) if net_pnl_usd is not None else None,
+                    kind=kind,
                 )
             )
             await s.commit()
@@ -116,10 +121,15 @@ class Repository:
             result = await s.execute(select(Position).where(Position.status == "open"))
             return list(result.scalars())
 
-    async def export_tax_csv(self, path: str | Path) -> int:
-        """AEAT-ready CSV export of the full audit log. Returns row count."""
+    async def export_tax_csv(self, path: str | Path, kind: str = "live") -> int:
+        """AEAT-ready CSV export. Only real trades: paper rows are excluded
+        by default (kind="live"); pass kind="paper" for a simulation report."""
         async with self._session() as s:
-            result = await s.execute(select(TaxAuditLog).order_by(TaxAuditLog.trade_id))
+            result = await s.execute(
+                select(TaxAuditLog)
+                .where(TaxAuditLog.kind == kind)
+                .order_by(TaxAuditLog.trade_id)
+            )
             rows = list(result.scalars())
         with open(path, "w", newline="", encoding="utf-8") as fh:
             writer = csv.writer(fh)
@@ -132,11 +142,11 @@ class Repository:
                     "symbol",
                     "side",
                     "amount",
-                    "price_eur_equivalent",
+                    "price_usd_equivalent",
                     "fee_amount",
                     "fee_currency",
                     "timestamp_utc",
-                    "net_pnl_eur",
+                    "net_pnl_usd",
                 ]
             )
             for r in rows:
@@ -149,11 +159,11 @@ class Repository:
                         r.symbol,
                         r.side,
                         r.amount,
-                        r.price_eur_equivalent,
+                        r.price_usd_equivalent,
                         r.fee_amount,
                         r.fee_currency,
                         r.timestamp_utc.isoformat(),
-                        r.net_pnl_eur if r.net_pnl_eur is not None else "",
+                        r.net_pnl_usd if r.net_pnl_usd is not None else "",
                     ]
                 )
         return len(rows)

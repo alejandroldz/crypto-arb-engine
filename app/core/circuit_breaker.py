@@ -8,12 +8,15 @@ Halts all execution when any trip condition fires:
 """
 from __future__ import annotations
 
+import logging
 import time
 from collections import deque
 from dataclasses import dataclass, field
 from decimal import Decimal
 
 from app.core.decimals import D
+
+logger = logging.getLogger("breaker")
 
 
 class TokenBucket:
@@ -41,18 +44,19 @@ class TokenBucket:
 @dataclass
 class CircuitBreaker:
     max_consecutive_failures: int
-    max_daily_loss_eur: Decimal
-    max_orders_per_window: int
-    window_seconds: int
+    max_daily_loss_usd: Decimal
+    max_orders_per_window: int = 6
+    window_seconds: int = 60
     halted: bool = False
     halt_reason: str | None = None
     _consecutive_failures: int = 0
-    _daily_pnl_eur: Decimal = Decimal("0")
+    _daily_pnl_usd: Decimal = Decimal("0")
     _order_times: deque = field(default_factory=deque)
 
     def _halt(self, reason: str) -> None:
         self.halted = True
         self.halt_reason = reason
+        logger.warning("CIRCUIT BREAKER HALT: %s", reason)
 
     def record_order(self) -> bool:
         """Register an order attempt; returns False and halts over the limit."""
@@ -73,9 +77,9 @@ class CircuitBreaker:
     def record_success(self) -> None:
         self._consecutive_failures = 0
 
-    def record_pnl_eur(self, amount: Decimal) -> None:
-        self._daily_pnl_eur += D(amount)
-        if self._daily_pnl_eur <= -D(self.max_daily_loss_eur):
+    def record_pnl_usd(self, amount: Decimal) -> None:
+        self._daily_pnl_usd += D(amount)
+        if self._daily_pnl_usd <= -D(self.max_daily_loss_usd):
             self._halt("daily loss limit exceeded")
 
     def reconciliation_mismatch(self) -> None:
@@ -83,7 +87,7 @@ class CircuitBreaker:
 
     def reset_daily(self) -> None:
         """New trading day: PnL resets; a halt does NOT auto-clear."""
-        self._daily_pnl_eur = Decimal("0")
+        self._daily_pnl_usd = Decimal("0")
 
     def manual_reset(self) -> None:
         self.halted = False
