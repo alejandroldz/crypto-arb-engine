@@ -26,10 +26,12 @@ def test_collateral_ratio_map_and_unknown_asset():
 def test_okx_is_principal_second_venue():
     s = Settings()
     assert s.perp_exchange_list[:2] == ["krakenfutures", "okx"]
-    i = s.perp_exchange_list.index("okx")
     # OKX EU X-Perp: linear USD-margined 5y expiry future with 8h funding
     # (BTC-USD_UM_XPERP-310404), not the global inverse swap BTC/USD:BTC
-    assert s.perp_symbol_list[i] == "BTC/USD:USD-310404"
+    assert "BTC/USD:USD-310404" in s.perp_symbols_for("okx")
+    # SOL only on OKX: its Kraken Futures funding history is negative
+    assert "SOL/USD:USD-310404" in s.perp_symbols_for("okx")
+    assert "SOL/USD:USD" not in s.perp_symbols_for("krakenfutures")
     assert s.taker_fee_for("okx") == 5
 
 

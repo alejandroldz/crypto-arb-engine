@@ -80,15 +80,12 @@ def _ctx(settings):
         },
         opportunities=[],
         open_carries={},
-        spot_key_default="kraken:BTC/USD",
-        spot_symbol="BTC/USD",
         spot_ex="kraken",
-        notional=Decimal("9000"),
+        notional=Decimal("3000"),
         uta_state=UtaAccountState(
             equity=Decimal("10000"), utilization=Decimal("0.9"),
             collateral_ratio=Decimal("0.95"), sim_mmr_rate=Decimal("0.04"),
         ),
-        coll_ratio=Decimal("0.95"),
         max_safe_pump=Decimal("2"),
     )
 
@@ -133,3 +130,48 @@ async def test_stale_candidate_is_skipped():
     object.__setattr__(stale, "local_ts_ns", time.monotonic_ns() - 10_000_000_000)
     assert await handle_funding_candidate(ctx, stale, time.monotonic_ns()) is None
     assert ctx.paper.opened == 0
+
+
+def _eth_ctx(settings):
+    ctx = _ctx(settings)
+    ctx.books["kraken:ETH/USD"] = _book("kraken", "ETH/USD")
+    ctx.books["okx:ETH/USD:USD-310404"] = _book("okx", "ETH/USD:USD-310404")
+    return ctx
+
+
+async def test_multi_base_resolves_matching_spot_book():
+    """An ETH funding candidate pairs with the ETH/USD spot book, not BTC's."""
+    settings = Settings()
+    ctx = _eth_ctx(settings)
+    rate = _rate("okx", "ETH/USD:USD-310404")
+    carry = await handle_funding_candidate(ctx, rate, time.monotonic_ns())
+    assert carry is not None
+    assert carry.spot_key == "kraken:ETH/USD"
+    assert carry.perp_key == "okx:ETH/USD:USD-310404"
+
+
+async def test_unknown_base_skipped():
+    settings = Settings()
+    ctx = _ctx(settings)
+    rate = _rate("okx", "DOGE/USD:USD-310404")  # not in configured spot symbols
+    assert await handle_funding_candidate(ctx, rate, time.monotonic_ns()) is None
+
+
+async def test_ineligible_perp_skipped():
+    settings = Settings()
+    ctx = _ctx(settings)
+    ctx.eligible = {"okx:BTC/USD:USD-310404"}  # krakenfutures not eligible
+    rate = _rate("krakenfutures", "BTC/USD:USD")
+    assert await handle_funding_candidate(ctx, rate, time.monotonic_ns()) is None
+
+
+async def test_portfolio_budget_blocks_overdeployment():
+    settings = Settings()
+    ctx = _ctx(settings)
+    # budget = 10000 * 0.9 = 9000; one 9000 carry already open
+    ctx.open_carries["kraken:BTC/USD|okx:BTC/USD:USD-310404"] = SimpleNamespace(
+        opp=SimpleNamespace(notional=Decimal("9000"))
+    )
+    ctx.notional = Decimal("9000")
+    rate = _rate("krakenfutures", "BTC/USD:USD")
+    assert await handle_funding_candidate(ctx, rate, time.monotonic_ns()) is None

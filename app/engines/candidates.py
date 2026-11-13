@@ -59,13 +59,14 @@ class CarryContext:
     books: dict[str, "L2OrderBook"]
     opportunities: object  # deque[FundingOpportunity]
     open_carries: dict[str, OpenCarry]
-    spot_key_default: str
-    spot_symbol: str
     spot_ex: str
-    notional: Decimal
+    notional: Decimal  # per-carry size; run() rebalances it on watchlist changes
     uta_state: "UtaAccountState | None"
-    coll_ratio: Decimal
     max_safe_pump: "Decimal | None"
+    # perp keys ("exchange:symbol") allowed for ENTRY; None = everything
+    # configured. The screener (or config default) owns the contents; an
+    # open carry is never closed by removal from this set.
+    eligible: "set[str] | None" = None
 
 
 async def handle_funding_candidate(
@@ -75,7 +76,15 @@ async def handle_funding_candidate(
     if ctx.breaker.halted or not ctx.gate.is_fresh(rate, now_ns):
         return None
     fkey = f"{rate.exchange}:{rate.symbol}"
-    pkey = f"{ctx.spot_key_default}|{fkey}"
+    if ctx.eligible is not None and fkey not in ctx.eligible:
+        return None
+    # the spot leg lives on the same base asset (BTC perp -> BTC/USD spot)
+    base = rate.symbol.split("/")[0]
+    spot_symbol = ctx.settings.spot_symbol_for_base(base)
+    if spot_symbol is None:
+        return None
+    spot_key = f"{ctx.spot_ex}:{spot_symbol}"
+    pkey = f"{spot_key}|{fkey}"
     if pkey in ctx.open_carries:
         return None
     history = await asyncio.to_thread(
@@ -98,16 +107,22 @@ async def handle_funding_candidate(
     print_opportunity(ctx.console, opp)
 
     perp_key = f"{rate.exchange}:{rate.symbol}"
-    if ctx.spot_key_default not in ctx.books or perp_key not in ctx.books:
+    if spot_key not in ctx.books or perp_key not in ctx.books:
         return None
     if not (
-        ctx.gate.is_fresh(ctx.books[ctx.spot_key_default], now_ns)
+        ctx.gate.is_fresh(ctx.books[spot_key], now_ns)
         and ctx.gate.is_fresh(ctx.books[perp_key], now_ns)
     ):
         return None
     if ctx.uta_state is not None:
+        # portfolio budget: total open notional + this carry must fit the
+        # utilization cap, or several small carries silently over-deploy
+        allocated = sum(D(c.opp.notional) for c in ctx.open_carries.values())
+        if allocated + ctx.notional > ctx.uta_state.notional:
+            logger.info("UTA budget full, skipping %s", fkey)
+            return None
         uta_gate = approve_unified_carry(
-            collateral_ratio=ctx.coll_ratio,
+            collateral_ratio=ctx.settings.collateral_ratio_for(base),
             min_collateral_ratio=D(ctx.settings.min_collateral_ratio_required),
             max_safe_pump_pct=ctx.max_safe_pump,
         )
@@ -118,9 +133,9 @@ async def handle_funding_candidate(
     ctx.breaker.record_order()
 
     def fetch() -> tuple["L2OrderBook", "L2OrderBook"]:
-        return ctx.books[ctx.spot_key_default], ctx.books[perp_key]
+        return ctx.books[spot_key], ctx.books[perp_key]
 
-    fill = await ctx.paper.open_carry(opp, fetch, spot_symbol=ctx.spot_symbol)
+    fill = await ctx.paper.open_carry(opp, fetch, spot_symbol=spot_symbol)
     if fill is None:
         ctx.breaker.record_failure()
         return None
@@ -128,7 +143,7 @@ async def handle_funding_candidate(
     carry = OpenCarry(
         fill=fill,
         opp=opp,
-        spot_key=ctx.spot_key_default,
+        spot_key=spot_key,
         perp_key=perp_key,
         funding_key=fkey,
         risk=CarryPositionRisk.build(

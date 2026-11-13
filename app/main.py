@@ -132,8 +132,6 @@ async def run() -> None:
 
     stop = asyncio.Event()
     spot_symbols = settings.spot_symbol_list
-    perp_symbols = settings.perp_symbol_list
-    spot_ex = settings.spot_exchange_list[0]
     tasks = []
     # One minimal market table per venue, shared across that venue's feeds
     # (full load_markets per instance OOMs a 2GB sandbox).
@@ -147,16 +145,16 @@ async def run() -> None:
         except Exception as exc:
             logger.warning("minimal markets %s failed: %s", v, exc)
             venue_markets[v] = None
-    for i, ex in enumerate(settings.spot_exchange_list):
-        sym = spot_symbols[i] if i < len(spot_symbols) else spot_symbols[0]
+    spot_ex = settings.spot_exchange_list[0]
+    for sym in spot_symbols:
         tasks.append(asyncio.create_task(
-            BookFeed(ex, [sym], markets_list=venue_markets.get(ex)).run(bus, stop)))
-    for i, ex in enumerate(settings.perp_exchange_list):
-        sym = perp_symbols[i] if i < len(perp_symbols) else perp_symbols[0]
+            BookFeed(spot_ex, [sym], markets_list=venue_markets.get(spot_ex)).run(bus, stop)))
+    for ex in settings.perp_exchange_list:
+        syms = settings.perp_symbols_for(ex)
         tasks.append(asyncio.create_task(
-            BookFeed(ex, [sym], markets_list=venue_markets.get(ex)).run(bus, stop)))
+            BookFeed(ex, syms, markets_list=venue_markets.get(ex)).run(bus, stop)))
         tasks.append(asyncio.create_task(
-            FundingPoller(ex, [sym], markets_list=venue_markets.get(ex)).run(bus, stop)))
+            FundingPoller(ex, syms, markets_list=venue_markets.get(ex)).run(bus, stop)))
 
     books_q = bus.subscribe(BOOKS_TOPIC)
     funding_q = bus.subscribe(FUNDING_TOPIC)
@@ -166,8 +164,9 @@ async def run() -> None:
     open_carries: dict[str, OpenCarry] = {}
     realized_pnl = Decimal("0")
     unified = settings.account_margin_mode.strip().upper() == "UNIFIED"
-    base_asset = spot_symbols[0].split("/")[0]
-    coll_ratio = settings.collateral_ratio_for(base_asset)
+    # multi-asset UTA: survival math uses the WORST configured haircut
+    spot_bases = [sym.split("/")[0] for sym in spot_symbols]
+    coll_ratio = min(settings.collateral_ratio_for(b) for b in spot_bases)
     uta_state = (
         UtaAccountState(
             equity=D(settings.paper_start_balance_usd),
@@ -179,9 +178,11 @@ async def run() -> None:
         if unified
         else None
     )
-    # UNIFIED: one notional per leg from total equity; SPLIT: fixed quote size
+    # UNIFIED: utilization budget split evenly across spot bases;
+    # SPLIT: fixed quote size
     notional = (
         uta_allocation(D(settings.paper_start_balance_usd), D(settings.uta_capital_utilization_pct))[0]
+        / max(1, len(spot_bases))
         if unified
         else settings.target_quote_size_list[0]
     )
@@ -194,7 +195,6 @@ async def run() -> None:
     last_health_check = 0.0
     last_tick_flush = 0.0
     last_book_record: dict[str, float] = {}
-    spot_key_default = f"{spot_ex}:{spot_symbols[0]}"
 
     # --- restart recovery: rebuild open carries from SQLite ---
     for pos in await repo.open_positions():
@@ -240,13 +240,15 @@ async def run() -> None:
         books=books,
         opportunities=opportunities,
         open_carries=open_carries,
-        spot_key_default=spot_key_default,
-        spot_symbol=spot_symbols[0],
         spot_ex=spot_ex,
         notional=notional,
         uta_state=uta_state,
-        coll_ratio=coll_ratio,
         max_safe_pump=max_safe_pump,
+        eligible={
+            f"{ex}:{sym}"
+            for ex in settings.perp_exchange_list
+            for sym in settings.perp_symbols_for(ex)
+        },
     )
 
     loop = asyncio.get_running_loop()
@@ -369,7 +371,7 @@ async def run() -> None:
                 )
                 uta_line = (
                     f"margin: UNIFIED {settings.uta_capital_utilization_pct * 100:.0f}% util | "
-                    f"{base_asset} ratio {coll_ratio * 100:.0f}% | "
+                    f"worst ratio {coll_ratio * 100:.0f}% | "
                     f"MMR {mmr_txt} (warn {settings.max_account_mmr_warning * 100:.0f}%, "
                     f"unwind {settings.max_account_mmr_emergency_unwind * 100:.0f}%) | "
                     f"max safe pump {pump_txt}"

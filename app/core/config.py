@@ -25,12 +25,18 @@ class Settings(BaseSettings):
 
     # exchanges (ccxt ids)
     spot_exchanges: str = "kraken"
-    spot_symbols: str = "BTC/USD"
+    spot_symbols: str = "BTC/USD,ETH/USD,SOL/USD"
     perp_exchanges: str = "krakenfutures,okx"
     # OKX EU (MiFID, OKX Europe Malta) serves X-Perps: 5-year linear USD-
     # margined expiry futures with perp-style 8h funding, NOT the global
     # inverse swap BTC/USD:BTC. ccxt symbol for BTC-USD_UM_XPERP-310404:
-    perp_symbols: str = "BTC/USD:USD,BTC/USD:USD-310404"
+    # exchange -> perp symbols (';' separates exchanges). SOL trades only
+    # on OKX: its Kraken Futures funding history is negative (300 intervals,
+    # verified 2026-11-13).
+    perp_symbol_map: str = (
+        "krakenfutures:BTC/USD:USD,ETH/USD:USD;"
+        "okx:BTC/USD:USD-310404,ETH/USD:USD-310404,SOL/USD:USD-310404"
+    )
 
     # sizing / profitability
     target_quote_sizes: str = "100,500,1000"
@@ -199,9 +205,29 @@ class Settings(BaseSettings):
     def spot_symbol_list(self) -> list[str]:
         return [s.strip() for s in self.spot_symbols.split(",") if s.strip()]
 
+    def perp_symbols_for(self, exchange: str) -> list[str]:
+        for group in self.perp_symbol_map.split(";"):
+            if ":" not in group:
+                continue
+            ex, symbols = group.split(":", 1)
+            if ex.strip() == exchange:
+                return [s.strip() for s in symbols.split(",") if s.strip()]
+        return []
+
     @property
     def perp_symbol_list(self) -> list[str]:
-        return [s.strip() for s in self.perp_symbols.split(",") if s.strip()]
+        out: list[str] = []
+        for ex in self.perp_exchange_list:
+            out.extend(self.perp_symbols_for(ex))
+        return out
+
+    def spot_symbol_for_base(self, base: str) -> str | None:
+        """Configured spot symbol for a base asset, e.g. ETH -> ETH/USD."""
+        want = f"{base.strip().upper()}/"
+        for sym in self.spot_symbol_list:
+            if sym.upper().startswith(want):
+                return sym
+        return None
 
     @property
     def target_quote_size_list(self) -> list[Decimal]:
