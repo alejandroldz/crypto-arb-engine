@@ -60,6 +60,7 @@ from app.engines.fee_oracle import (
     fetch_krakenfutures_fee,
     fetch_okx_fee,
 )
+from app.engines.liquidity import InsufficientDepth
 from app.engines.monitor import MonitorAction, evaluate_carry
 from app.engines.paper_trader import PaperFill, PaperTrader
 from app.engines.risk import CarryPositionRisk, StalenessGate, UtaAccountState
@@ -502,6 +503,10 @@ async def run() -> None:
         breaker.record_order()
         try:
             pnl = await paper.close_carry(carry.fill, carry.funding_collected, fetch)
+        except InsufficientDepth as exc:
+            # transient: keep the position open and retry next cycle
+            logger.warning("unwind deferred (depth) %s: %s", key, exc)
+            return
         except (KeyError, AssertionError) as exc:
             breaker.record_failure()
             logger.error("unwind failed %s: %s", key, exc)

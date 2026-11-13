@@ -19,7 +19,7 @@ from app.connectors.normalizer import L2OrderBook
 from app.core.decimals import D, bps_of, div, mul
 from app.database.repository import Repository
 from app.engines.arbitrage import FundingOpportunity
-from app.engines.liquidity import vwap_for_base, vwap_for_quote
+from app.engines.liquidity import InsufficientDepth, vwap_for_base, vwap_for_quote
 
 #: returns the CURRENT (spot_book, perp_book) when called after the delay
 BookSource = Callable[[], tuple[L2OrderBook, L2OrderBook]]
@@ -212,6 +212,14 @@ class PaperTrader:
 
         sell = vwap_for_base(spot_book, "sell", fill.qty_base, self.liquidity_haircut)
         cover = vwap_for_base(perp_book, "buy", fill.qty_base, self.liquidity_haircut)
+        # F05 fix: a partial fill is NOT a close. Never record the full
+        # position quantity against partial depth; keep the position open
+        # and let the caller retry with fresh books.
+        if not (sell.executable and cover.executable):
+            raise InsufficientDepth(
+                f"close aborted: spot filled {sell.base_qty}/{fill.qty_base}, "
+                f"perp filled {cover.base_qty}/{fill.qty_base}"
+            )
         assert sell.vwap is not None and cover.vwap is not None
 
         spot_proceeds = sell.filled_quote

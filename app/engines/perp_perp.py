@@ -26,7 +26,7 @@ from typing import Callable, Sequence
 from app.connectors.normalizer import FundingRate, L2OrderBook
 from app.core.decimals import D, ZERO, bps_of, div, mul
 from app.database.repository import Repository
-from app.engines.liquidity import vwap_for_base, vwap_for_quote
+from app.engines.liquidity import InsufficientDepth, vwap_for_base, vwap_for_quote
 
 logger = logging.getLogger(__name__)
 
@@ -260,6 +260,12 @@ class PerpPerpTrader:
         long_book, short_book = books_after_latency()
         sell = vwap_for_base(long_book, "sell", fill.qty_base, self.liquidity_haircut)
         cover = vwap_for_base(short_book, "buy", fill.qty_base, self.liquidity_haircut)
+        # F05 fix: never record a full close against partial depth.
+        if not (sell.executable and cover.executable):
+            raise InsufficientDepth(
+                f"pp close aborted: long filled {sell.base_qty}/{fill.qty_base}, "
+                f"short filled {cover.base_qty}/{fill.qty_base}"
+            )
         assert sell.vwap is not None and cover.vwap is not None
         long_fee = bps_of(sell.filled_quote, self.taker_fee_bps)
         short_fee = bps_of(cover.filled_quote, self.taker_fee_bps)
@@ -483,6 +489,10 @@ async def pp_manage(ctx: PpContext) -> None:
         ctx.breaker.record_order()
         try:
             pnl = await ctx.paper.close_pair(pos.fill, pos.funding_collected_net, fetch)
+        except InsufficientDepth as exc:
+            # transient: keep the pair open and retry next cycle
+            logger.warning("pp unwind deferred (depth) %s: %s", pair_key, exc)
+            continue
         except (KeyError, AssertionError) as exc:
             ctx.breaker.record_failure()
             logger.error("pp unwind failed %s: %s", pair_key, exc)

@@ -149,5 +149,9 @@ def vwap_for_base(
     )
 
 
+class InsufficientDepth(Exception):
+    """Book cannot fully fill the requested quantity (close must retry)."""
+
+
 # re-export for callers that compute fee buffers on notional
-__all__ = ["Side", "VwapResult", "book_depth_quote", "vwap_for_quote", "vwap_for_base", "bps_of"]
+__all__ = ["Side", "VwapResult", "book_depth_quote", "vwap_for_quote", "vwap_for_base", "bps_of", "InsufficientDepth"]
