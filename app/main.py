@@ -39,11 +39,20 @@ from app.connectors.ccxt_manager import (
 from app.connectors.normalizer import FundingRate, L2OrderBook
 from app.core.circuit_breaker import CircuitBreaker
 from app.core.config import get_settings
-from app.core.decimals import D
+from app.core.decimals import D, ZERO, mul
 from app.core.events import EventBus
 from app.database.duckdb_store import TickStore
 from app.database.repository import Repository
 from app.engines.candidates import CarryContext, OpenCarry, handle_funding_candidate
+from app.engines.perp_perp import (
+    PerpPerpFill,
+    PerpPerpOpportunity,
+    PerpPerpTrader,
+    PpContext,
+    PpPosition,
+    pp_handle_funding,
+    pp_manage,
+)
 from app.engines.arbitrage import FundingOpportunity
 from app.engines.fee_oracle import (
     FeeOracle,
@@ -270,6 +279,8 @@ async def run() -> None:
 
     # --- restart recovery: rebuild open carries from SQLite ---
     for pos in await repo.open_positions():
+        if pos.exchange_spot.endswith("(long)"):
+            continue  # perp-perp row: recovered into pp_ctx below
         perp_key = f"{pos.exchange_perp}:{pos.symbol}"
         spot_key = f"{pos.exchange_spot}:{pos.spot_symbol or spot_symbols[0]}"
         open_carries[f"{spot_key}|{perp_key}"] = OpenCarry(
@@ -322,6 +333,76 @@ async def run() -> None:
             for sym in settings.perp_symbols_for(ex)
         },
     )
+
+    # --- perp-perp module (decoupled: own trader, own context) ---
+    pp_realized = [ZERO]
+    pp_ctx: PpContext | None = None
+    if settings.perp_perp_enabled:
+        def pp_budget() -> Decimal:
+            total = (
+                D(uta_state.notional)
+                if uta_state is not None
+                else mul(D(settings.paper_start_balance_usd),
+                         D(settings.uta_capital_utilization_pct))
+            )
+            used = sum(D(c.opp.notional) for c in open_carries.values())
+            used += sum(D(pos.opp.notional) for pos in pp_ctx.open.values())
+            return max(ZERO, total - used)
+
+        pp_ctx = PpContext(
+            settings=settings,
+            paper=PerpPerpTrader(
+                repo,
+                latency_ms=int(settings.dry_run_latency_ms),
+                maker_fee_bps=max(
+                    D(settings.maker_fee_for(ex)) for ex in settings.perp_exchange_list
+                ),
+                taker_fee_bps=max(
+                    D(settings.taker_fee_for(ex)) for ex in settings.perp_exchange_list
+                ),
+                execution_mode=settings.execution_mode,
+                maker_timeout_seconds=int(settings.maker_timeout_seconds),
+                maker_fallback=settings.maker_fallback,
+            ),
+            repo=repo,
+            ticks=ticks,
+            books=books,
+            funding=funding,
+            breaker=breaker,
+            notifier=notifier,
+            open={},
+            budget_remaining=pp_budget,
+            realized_pnl=pp_realized,
+        )
+        now_ns = time.monotonic_ns()
+        for pos in await repo.open_positions():
+            if not pos.exchange_spot.endswith("(long)"):
+                continue
+            long_ex = pos.exchange_spot[: -len("(long)")]
+            base = pos.symbol.split("/")[0]
+            short_key = f"{pos.exchange_perp}:{pos.symbol}"
+            pair_key = f"{base}:{long_ex}->{pos.exchange_perp}"
+            pp_ctx.open[pair_key] = PpPosition(
+                fill=PerpPerpFill(
+                    position_id=pos.id, qty_base=D(pos.qty_base),
+                    long_vwap=D(pos.spot_entry_vwap), short_vwap=D(pos.perp_entry_vwap),
+                ),
+                opp=PerpPerpOpportunity(
+                    base=base, long_exchange=long_ex,
+                    long_symbol=pos.spot_symbol.split(":", 1)[1],
+                    short_exchange=pos.exchange_perp, short_symbol=pos.symbol,
+                    notional=D(pos.notional),
+                    net_rate_per_hour=D(pos.entry_funding_rate),
+                    holding_hours=pos.holding_intervals,
+                    breakeven_hours=0, projected_net=D("0"),
+                ),
+                long_key=pos.spot_symbol,
+                short_key=short_key,
+                funding_collected_net=D(pos.funding_collected),
+                opened_ns=now_ns,  # restart resets the holding clock
+                last_accrual_ns=now_ns,
+            )
+            logger.info("recovered pp position %s (%s)", pos.id, pair_key)
 
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
@@ -454,6 +535,12 @@ async def run() -> None:
                 await asyncio.to_thread(ticks.record_funding, rate)
                 append_funding_log(rate)
                 await handle_funding_candidate(carry_ctx, rate, now_ns)
+                if pp_ctx is not None:
+                    try:
+                        await pp_handle_funding(pp_ctx, rate)
+                    except Exception as exc:  # decoupled: never kills the carry loop
+                        logger.exception("perp-perp funding hook failed: %s", exc)
+                        await notifier.send(f"PP MODULE ERROR (funding hook): {exc}")
 
             if time.monotonic() - last_tick_flush > 30:
                 last_tick_flush = time.monotonic()
@@ -518,6 +605,12 @@ async def run() -> None:
                     await repo.add_funding(carry.fill.position_id, decision.accrual)
                 if decision.action is MonitorAction.UNWIND:
                     await close_carry(key, carry, decision.reason)
+            if pp_ctx is not None:
+                try:
+                    await pp_manage(pp_ctx)
+                except Exception as exc:  # decoupled: carry management continues
+                    logger.exception("perp-perp manage failed: %s", exc)
+                    await notifier.send(f"PP MODULE ERROR (manage): {exc}")
 
             uta_line = ""
             if uta_state is not None:
@@ -538,8 +631,8 @@ async def run() -> None:
                     funding,
                     list(opportunities),
                     breaker,
-                    len(open_carries),
-                    realized_pnl,
+                    len(open_carries) + (len(pp_ctx.open) if pp_ctx else 0),
+                    realized_pnl + pp_realized[0],
                     uta_line,
                 )
             )
