@@ -339,7 +339,11 @@ class Settings(BaseSettings):
 
     @property
     def spot_symbol_list(self) -> list[str]:
-        return [s.strip() for s in self.spot_symbols.split(",") if s.strip()]
+        syms = [s.strip() for s in self.spot_symbols.split(",") if s.strip()]
+        # fuzz F27: empty list died later as a bare min() ValueError
+        if not syms:
+            raise ValueError("spot_symbols must name at least one symbol")
+        return syms
 
     def perp_symbols_for(self, exchange: str) -> list[str]:
         for group in self.perp_symbol_map.split(";"):

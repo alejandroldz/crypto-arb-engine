@@ -110,3 +110,11 @@ def test_vwap_rejects_nan_size():
         vwap_for_quote(book, "sell", "NaN", "0")
     with pytest.raises(ValueError, match="finite"):
         vwap_for_base(book, "sell", "NaN", "0")
+
+
+def test_spot_symbols_empty_rejected():
+    import pytest
+
+    from app.core.config import Settings
+    with pytest.raises(ValueError, match="spot_symbols"):
+        Settings(spot_symbols="").spot_symbol_list
