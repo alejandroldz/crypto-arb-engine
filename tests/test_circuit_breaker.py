@@ -1,4 +1,5 @@
 """Circuit breaker: trading halts on the kill switch (RISK 3)."""
+import pytest
 from decimal import Decimal
 
 from app.core.decimals import D
@@ -148,3 +149,32 @@ def test_mtm_counts_toward_daily_loss(tmp_path):
     b.record_mtm_usd(D("-10"))  # -20 realized + -10 open = beyond -25
     assert b.halted
     assert "MTM" in b.halt_reason
+
+
+def test_f46_record_mtm_ignores_non_finite(tmp_path):
+    """F46: NaN mtm used to raise InvalidOperation out of the scan loop;
+    the kill switch drops it like record_pnl_usd does."""
+    from app.core.circuit_breaker import CircuitBreaker
+
+    cb = CircuitBreaker(max_consecutive_failures=3,
+                        max_daily_loss_usd=Decimal("25"),
+                        max_orders_per_window=5, window_seconds=60,
+                        state_path=str(tmp_path / "cb.json"))
+    cb.record_mtm_usd(Decimal("NaN"))  # no raise
+    cb.record_mtm_usd(Decimal("Infinity"))
+    assert not cb.halted
+    cb.record_mtm_usd(Decimal("-100"))  # still works after the junk
+    assert cb.halted
+
+
+def test_f47_order_window_cannot_be_disabled_by_typo():
+    """F47: cb_order_window_seconds=0 silently disabled the rate limit."""
+    import pydantic
+    from app.core.config import Settings
+
+    with pytest.raises(pydantic.ValidationError):
+        Settings(cb_order_window_seconds=0)
+    with pytest.raises(pydantic.ValidationError):
+        Settings(cb_max_orders_per_window=0)
+    with pytest.raises(pydantic.ValidationError):
+        Settings(cb_max_consecutive_failures=-1)

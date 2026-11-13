@@ -116,8 +116,15 @@ class CircuitBreaker:
     def record_mtm_usd(self, amount: Decimal) -> None:
         """op.#8: mark-to-market of open exposure counts toward the daily
         loss limit, not only realized closes."""
+        amount = D(amount)
+        if not amount.is_finite():
+            # fuzz F46: same guard as record_pnl_usd (F18) - a NaN here
+            # escaped to the scan loop (main.py call site has no try)
+            # instead of being dropped by the kill switch
+            logger.error("non-finite mtm ignored by breaker: %r", amount)
+            return
         self._maybe_roll_day()
-        self._mtm_usd = D(amount)
+        self._mtm_usd = amount
         if self._daily_pnl_usd + self._mtm_usd <= -D(self.max_daily_loss_usd):
             self._halt("daily loss limit exceeded (realized + MTM)")
 

@@ -134,9 +134,10 @@ class Settings(BaseSettings):
 
     # circuit breaker (RISK 6)
     max_daily_loss_usd: Decimal = Decimal("25")
-    cb_max_consecutive_failures: int = 3
-    cb_max_orders_per_window: int = 5
-    cb_order_window_seconds: int = 60
+    # fuzz F47: a 0/negative window silently DISABLED the order rate limit
+    cb_max_consecutive_failures: int = Field(default=3, ge=0)
+    cb_max_orders_per_window: int = Field(default=5, ge=1)
+    cb_order_window_seconds: int = Field(default=60, ge=1)
 
     # storage
     # op.#10: under ./data, the dir docker-compose mounts as a volume - a
