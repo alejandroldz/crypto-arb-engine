@@ -26,8 +26,8 @@ class Settings(BaseSettings):
     # exchanges (ccxt ids)
     spot_exchanges: str = "kraken"
     spot_symbols: str = "BTC/USD"
-    perp_exchanges: str = "deribit,krakenfutures,bybit"
-    perp_symbols: str = "BTC-PERPETUAL,BTC/USD:USD,BTC/USD:BTC"
+    perp_exchanges: str = "krakenfutures,okx,deribit"
+    perp_symbols: str = "BTC/USD:USD,BTC/USD:BTC,BTC-PERPETUAL"
 
     # sizing / profitability
     target_quote_sizes: str = "100,500,1000"
@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     liquidity_haircut: Decimal = Decimal("0.50")
     # per-venue taker fees in bps (worst-case retail tier; user must verify
     # their own tier). kraken spot taker is far pricier than perp venues.
-    taker_fee_bps: str = "kraken:40,krakenfutures:5,deribit:5,bybit:5.5"
+    taker_fee_bps: str = "kraken:40,krakenfutures:5,deribit:5,bybit:5.5,okx:5"
     default_taker_fee_bps: Decimal = Decimal("40")
     # minimum funding-rate history samples before approving a carry
     min_funding_history: int = 30
@@ -82,6 +82,9 @@ class Settings(BaseSettings):
     krakenfutures_api_secret: str = ""
     deribit_client_id: str = ""
     deribit_client_secret: str = ""
+    okx_api_key: str = ""
+    okx_api_secret: str = ""
+    okx_api_passphrase: str = ""
 
     # telegram alerts
     telegram_bot_token: str = ""

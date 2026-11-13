@@ -172,6 +172,21 @@ async def fetch_unified_account_health(
                 total_margin_balance=Decimal(str(res.get("margin_balance", "0"))),
                 total_maintenance_margin=Decimal(str(res.get("maintenance_margin", "0"))),
             )
+        if exchange_id == "okx":
+            # v5 unified account: totalEq/adjEq; mgnRatio = adjEq/MM (OKX
+            # inverts the spec's MMR). Field names per v5 docs; verify
+            # against the real read-only key when it arrives.
+            r = await ex.private_get_account_balance()
+            data = (r.get("data") or [{}])[0]
+            adj_eq = Decimal(str(data.get("adjEq", "0")))
+            mgn_ratio = Decimal(str(data.get("mgnRatio", "0")))
+            mm = adj_eq / mgn_ratio if mgn_ratio > 0 else Decimal("0")
+            return AccountHealth(
+                exchange=exchange_id,
+                total_equity=Decimal(str(data.get("totalEq", "0"))),
+                total_margin_balance=adj_eq,
+                total_maintenance_margin=mm,
+            )
         if exchange_id == "bybit":
             # v5 UNIFIED account: equity/margin/MMR straight from the account
             r = await ex.private_get_v5_account_info()
