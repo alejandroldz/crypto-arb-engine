@@ -70,7 +70,9 @@ class BookFeed:
 
     async def run(self, bus: EventBus, stop: asyncio.Event) -> None:
         ex = getattr(ccxtpro, self.exchange_id)({"enableRateLimit": True})
-        ex.number = str  # parse numbers as strings, never floats
+        # NOTE: no ex.number = str here: ccxt.pro order-book maintenance does
+        # arithmetic on prices (-price), which breaks on strings. normalize_book
+        # stringifies floats via repr, which is exact for Decimal parsing.
         try:
             while not stop.is_set():
                 for symbol in self.symbols:
