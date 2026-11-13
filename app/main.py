@@ -138,7 +138,13 @@ async def run() -> None:
         max_daily_loss_usd=settings.max_daily_loss_usd,
         max_orders_per_window=settings.cb_max_orders_per_window,
         window_seconds=settings.cb_order_window_seconds,
+        state_path="breaker_state.json",
     )
+    # op.#8: rebuild today's realized PnL from the ledger (RAM starts at 0,
+    # the ledger does not)
+    day_start = datetime.now(timezone.utc).replace(
+        hour=0, minute=0, second=0, microsecond=0)
+    breaker.seed_daily_pnl(await repo.realized_pnl_since(day_start))
     gate = StalenessGate(settings.max_data_age_ms_funding)
     paper = PaperTrader(
         repo,
@@ -661,6 +667,32 @@ async def run() -> None:
                     await repo.add_funding(carry.fill.position_id, decision.accrual)
                 if decision.action is MonitorAction.UNWIND:
                     await close_carry(key, carry, decision.reason)
+            # op.#8: daily loss limit sees open exposure too (MTM at
+            # top-of-book exit prices, fees ignored = optimistic, so the
+            # trip is if anything late, never early)
+            mtm = ZERO
+            for carry in open_carries.values():
+                sb = books.get(carry.spot_key)
+                pb = books.get(carry.perp_key)
+                if sb is None or pb is None:
+                    continue
+                qty = D(carry.fill.qty_base)
+                mtm += D(carry.funding_collected)
+                mtm += mul(qty, sb.best_bid.price) - mul(qty, carry.fill.spot_vwap)
+                mtm += mul(qty, carry.fill.perp_vwap) - mul(qty, pb.best_ask.price)
+            if pp_ctx is not None:
+                for pp in pp_ctx.open.values():
+                    lb = books.get(pp.long_key)
+                    sb2 = books.get(pp.short_key)
+                    if lb is None or sb2 is None:
+                        continue
+                    qty = D(pp.fill.qty_base)
+                    mtm += D(pp.funding_collected_net)
+                    mtm += mul(qty, lb.best_bid.price) - mul(qty, pp.fill.long_vwap)
+                    mtm += mul(qty, pp.fill.short_vwap) - mul(qty, sb2.best_ask.price)
+            if open_carries or (pp_ctx is not None and pp_ctx.open):
+                breaker.record_mtm_usd(mtm)
+
             if pp_ctx is not None:
                 try:
                     await pp_manage(pp_ctx)

@@ -226,6 +226,19 @@ class Repository:
             )
             await s.commit()
 
+    async def realized_pnl_since(self, since: datetime) -> Decimal:
+        """op.#8: today's realized PnL from the ledger (restart-proof)."""
+        async with self._session() as s:
+            rows = (
+                await s.execute(
+                    select(Position).where(
+                        Position.status == "closed",
+                        Position.closed_at >= since,
+                    )
+                )
+            ).scalars().all()
+        return sum((D(r.realized_pnl_usd) for r in rows), D("0"))
+
     async def open_positions(self) -> list[Position]:
         async with self._session() as s:
             result = await s.execute(select(Position).where(Position.status == "open"))

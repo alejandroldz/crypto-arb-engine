@@ -8,8 +8,11 @@ Halts all execution when any trip condition fires:
 """
 from __future__ import annotations
 
+import json
 import logging
 import time
+from datetime import datetime, timezone
+from pathlib import Path
 from collections import deque
 from dataclasses import dataclass, field
 from decimal import Decimal
@@ -49,14 +52,78 @@ class CircuitBreaker:
     window_seconds: int = 60
     halted: bool = False
     halt_reason: str | None = None
+    state_path: str | None = None
     _consecutive_failures: int = 0
     _daily_pnl_usd: Decimal = Decimal("0")
+    _mtm_usd: Decimal = Decimal("0")
+    _day: str = ""
     _order_times: deque = field(default_factory=deque)
+
+    def __post_init__(self) -> None:
+        # op.#8: a HALT survives restarts. Without this, restarting after
+        # tripping the daily loss limit re-enabled entries immediately.
+        if self.state_path and Path(self.state_path).exists():
+            try:
+                st = json.loads(Path(self.state_path).read_text())
+                self.halted = bool(st.get("halted", False))
+                self.halt_reason = st.get("halt_reason")
+                self._consecutive_failures = int(st.get("consecutive_failures", 0))
+                self._day = str(st.get("day", ""))
+                if self._day == self._today():
+                    self._daily_pnl_usd = D(st.get("daily_pnl_usd", "0"))
+                if self.halted:
+                    logger.warning(
+                        "breaker restored HALT from disk: %s", self.halt_reason
+                    )
+            except Exception as exc:
+                logger.error("breaker state unreadable, starting clean: %s", exc)
+
+    @staticmethod
+    def _today() -> str:
+        return datetime.now(timezone.utc).date().isoformat()
+
+    def _persist(self) -> None:
+        if not self.state_path:
+            return
+        tmp = Path(self.state_path + ".tmp")
+        tmp.write_text(json.dumps({
+            "halted": self.halted,
+            "halt_reason": self.halt_reason,
+            "consecutive_failures": self._consecutive_failures,
+            "day": self._day or self._today(),
+            "daily_pnl_usd": str(self._daily_pnl_usd),
+        }))
+        tmp.replace(self.state_path)
+
+    def _maybe_roll_day(self) -> None:
+        """op.#8: 'daily' means a defined UTC day - roll even without restart."""
+        today = self._today()
+        if self._day != today:
+            self._day = today
+            self._daily_pnl_usd = Decimal("0")
+            self._persist()
+
+    def seed_daily_pnl(self, amount: Decimal) -> None:
+        """op.#8: rebuild today's realized PnL from the ledger at startup."""
+        self._day = self._today()
+        self._daily_pnl_usd = D(amount)
+        if self._daily_pnl_usd <= -D(self.max_daily_loss_usd):
+            self._halt("daily loss limit exceeded")
+        self._persist()
+
+    def record_mtm_usd(self, amount: Decimal) -> None:
+        """op.#8: mark-to-market of open exposure counts toward the daily
+        loss limit, not only realized closes."""
+        self._maybe_roll_day()
+        self._mtm_usd = D(amount)
+        if self._daily_pnl_usd + self._mtm_usd <= -D(self.max_daily_loss_usd):
+            self._halt("daily loss limit exceeded (realized + MTM)")
 
     def _halt(self, reason: str) -> None:
         self.halted = True
         self.halt_reason = reason
         logger.warning("CIRCUIT BREAKER HALT: %s", reason)
+        self._persist()
 
     def record_order(self) -> bool:
         """Register an order attempt; returns False and halts over the limit."""
@@ -89,15 +156,19 @@ class CircuitBreaker:
 
     def record_failure(self) -> None:
         self._consecutive_failures += 1
+        self._persist()
         if self._consecutive_failures > self.max_consecutive_failures:
             self._halt("consecutive failures exceeded")
 
     def record_success(self) -> None:
         self._consecutive_failures = 0
+        self._persist()
 
     def record_pnl_usd(self, amount: Decimal) -> None:
+        self._maybe_roll_day()
         self._daily_pnl_usd += D(amount)
-        if self._daily_pnl_usd <= -D(self.max_daily_loss_usd):
+        self._persist()
+        if self._daily_pnl_usd + self._mtm_usd <= -D(self.max_daily_loss_usd):
             self._halt("daily loss limit exceeded")
 
     def reconciliation_mismatch(self) -> None:
@@ -106,8 +177,12 @@ class CircuitBreaker:
     def reset_daily(self) -> None:
         """New trading day: PnL resets; a halt does NOT auto-clear."""
         self._daily_pnl_usd = Decimal("0")
+        self._day = self._today()
+        self._persist()
 
     def manual_reset(self) -> None:
+        """Explicit operator reset: the ONLY way a persisted halt clears."""
         self.halted = False
         self.halt_reason = None
         self._consecutive_failures = 0
+        self._persist()
