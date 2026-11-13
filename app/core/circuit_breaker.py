@@ -69,6 +69,24 @@ class CircuitBreaker:
         self._order_times.append(now)
         return True
 
+    def reserve_orders(self, n: int) -> bool:
+        """Atomically reserve capacity for n orders of one ENTRY.
+
+        Returns False (and halts per record_order) if the window cannot
+        take all n - the caller MUST abort the entry. Fixes the bug where
+        the second leg's HALT was ignored and the entry executed anyway.
+        """
+        for _ in range(n):
+            if not self.record_order():
+                return False
+        return True
+
+    def record_exit(self) -> None:
+        """Track a risk-reducing exit order WITHOUT halting: an unwind
+        must always be allowed through, even over the entry rate limit."""
+        now = time.monotonic()
+        self._order_times.append(now)
+
     def record_failure(self) -> None:
         self._consecutive_failures += 1
         if self._consecutive_failures > self.max_consecutive_failures:

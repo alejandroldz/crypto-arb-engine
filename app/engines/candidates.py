@@ -160,8 +160,10 @@ async def handle_funding_candidate(
         if not uta_gate.approved:
             logger.info("UTA gate rejected %s: %s", rate.symbol, uta_gate.reason)
             return None
-    ctx.breaker.record_order()
-    ctx.breaker.record_order()
+    if not ctx.breaker.reserve_orders(2):
+        logger.warning("breaker rechaza entrada %s %s (rate limit / HALT)",
+                       rate.exchange, rate.symbol)
+        return None
 
     def fetch() -> tuple["L2OrderBook", "L2OrderBook"]:
         return ctx.books[spot_key], ctx.books[perp_key]

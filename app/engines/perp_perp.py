@@ -423,11 +423,16 @@ async def _try_open(ctx: PpContext, base: str) -> None:
                 scale = sized / D(opp.notional)
                 opp = replace(opp, notional=sized,
                               projected_net=D(opp.projected_net) * scale)
+            if not ctx.breaker.reserve_orders(2):
+                logger.warning("breaker rechaza entrada PP %s", pair_key)
+                return
             def fetch(lk=long_key, sk=short_key):
                 return ctx.books[lk], ctx.books[sk]
             fill = await ctx.paper.open_pair(opp, fetch)
             if fill is None:
+                ctx.breaker.record_failure()
                 continue
+            ctx.breaker.record_success()
             ctx.open[pair_key] = PpPosition(
                 fill=fill, opp=opp, long_key=long_key, short_key=short_key,
                 funding_collected_net=ZERO,
@@ -497,8 +502,8 @@ async def pp_manage(ctx: PpContext) -> None:
             continue
         def fetch(lk=pos.long_key, sk=pos.short_key):
             return ctx.books[lk], ctx.books[sk]
-        ctx.breaker.record_order()
-        ctx.breaker.record_order()
+        ctx.breaker.record_exit()
+        ctx.breaker.record_exit()
         try:
             pnl = await ctx.paper.close_pair(pos.fill, pos.funding_collected_net, fetch)
         except InsufficientDepth as exc:

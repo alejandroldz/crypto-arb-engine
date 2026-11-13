@@ -500,8 +500,8 @@ async def run() -> None:
         def fetch() -> tuple[L2OrderBook, L2OrderBook]:
             return books[carry.spot_key], books[carry.perp_key]
 
-        breaker.record_order()
-        breaker.record_order()
+        breaker.record_exit()
+        breaker.record_exit()
         try:
             pnl = await paper.close_carry(carry.fill, carry.funding_collected, fetch)
         except InsufficientDepth as exc:

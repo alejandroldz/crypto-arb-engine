@@ -175,3 +175,21 @@ async def test_portfolio_budget_blocks_overdeployment():
     ctx.notional = Decimal("9000")
     rate = _rate("krakenfutures", "BTC/USD:USD")
     assert await handle_funding_candidate(ctx, rate, time.monotonic_ns()) is None
+
+
+@pytest.mark.asyncio
+async def test_breaker_rate_limit_blocks_entry_before_execution():
+    """Fix: with window=1 the 2-leg reservation fails and NOTHING opens."""
+    settings = Settings(
+        min_net_profit_usd=Decimal("0.01"), min_funding_history=10,
+    )
+    ctx = _ctx(settings)
+    ctx.breaker = CircuitBreaker(
+        max_consecutive_failures=3, max_daily_loss_usd=Decimal("25"),
+        max_orders_per_window=1, window_seconds=60,
+    )
+    now = time.monotonic_ns()
+    c = await handle_funding_candidate(ctx, _rate("krakenfutures", "BTC/USD:USD"), now)
+    assert c is None
+    assert ctx.paper.opened == 0
+    assert ctx.breaker.halted

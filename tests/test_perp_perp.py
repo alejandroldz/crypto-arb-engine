@@ -173,6 +173,12 @@ class _Breaker:
     halted = False
 
     def record_order(self):
+        return True
+
+    def reserve_orders(self, n):
+        return not self.halted
+
+    def record_exit(self):
         pass
 
     def record_failure(self):

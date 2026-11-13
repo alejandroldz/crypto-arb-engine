@@ -66,3 +66,27 @@ def test_manual_reset_clears_halt():
     assert cb.halted
     cb.manual_reset()
     assert not cb.halted and cb.halt_reason is None
+
+
+def test_reserve_orders_aborts_atomically_when_window_full():
+    """Fix: an entry whose 2nd leg would HALT must not execute."""
+    b = CircuitBreaker(max_consecutive_failures=3, max_daily_loss_usd=Decimal("25"),
+                       max_orders_per_window=1)
+    assert b.reserve_orders(2) is False
+    assert b.halted  # the HALT fires...
+    # ...and the caller must see False BEFORE sending anything
+
+
+def test_reserve_orders_success_path():
+    b = CircuitBreaker(max_consecutive_failures=3, max_daily_loss_usd=Decimal("25"),
+                       max_orders_per_window=2)
+    assert b.reserve_orders(2) is True
+    assert not b.halted
+
+
+def test_record_exit_never_halts():
+    b = CircuitBreaker(max_consecutive_failures=3, max_daily_loss_usd=Decimal("25"),
+                       max_orders_per_window=1)
+    for _ in range(10):
+        b.record_exit()
+    assert not b.halted
