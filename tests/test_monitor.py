@@ -32,18 +32,47 @@ KW = dict(qty_base=D("0.01"), perp_entry_vwap=D("50000"), liquidation_buffer_pct
 
 def test_accrue_on_new_payment():
     d = evaluate_carry(
+        last_payment_ts=T0, rate=rate(T0 + timedelta(hours=8), r="0.0009"),
+        prev_rate=rate(T0 + timedelta(hours=8), r="0.0003"),
+        perp_book=book("50010"), risk=RISK, **KW,
+    )
+    assert d.action is MonitorAction.ACCRUE
+    # dif D5: OKX accrues the PRE-CUT rate (period that ended), not the new one
+    assert d.accrual == D("500") * D("0.0003")  # notional 500 * rate
+    assert d.new_payment_ts == T0 + timedelta(hours=8)
+    assert not d.accrual_uncertain
+
+
+def test_okx_accrual_without_precut_rate_is_flagged():
+    # no prev observation (e.g. just recovered): accrue current but flag it
+    d = evaluate_carry(
         last_payment_ts=T0, rate=rate(T0 + timedelta(hours=8)),
         perp_book=book("50010"), risk=RISK, **KW,
     )
     assert d.action is MonitorAction.ACCRUE
-    assert d.accrual == D("500") * D("0.0003")  # notional 500 * rate
-    assert d.new_payment_ts == T0 + timedelta(hours=8)
+    assert d.accrual_uncertain
+
+
+def test_kraken_accrues_trailing_rate_without_prev():
+    # Kraken's reported rate IS the just-settled hour: current rate is right
+    def krate(ts):
+        return FundingRate(
+            exchange="krakenfutures", symbol="BTC/USD:USD", rate="0.0003",
+            local_ts_ns=1, next_funding_ts=ts,
+        )
+    d = evaluate_carry(
+        last_payment_ts=T0, rate=krate(T0 + timedelta(hours=1)),
+        perp_book=book("50010"), risk=RISK, **KW,
+    )
+    assert d.action is MonitorAction.ACCRUE
+    assert d.accrual == D("500") * D("0.0003")
     assert not d.accrual_uncertain
 
 
 def test_missed_payments_flag_uncertain():
     d = evaluate_carry(
         last_payment_ts=T0, rate=rate(T0 + timedelta(hours=32)),  # 4 intervals gap
+        prev_rate=rate(T0 + timedelta(hours=32)),
         perp_book=book("50010"), risk=RISK, **KW,
     )
     assert d.action is MonitorAction.ACCRUE

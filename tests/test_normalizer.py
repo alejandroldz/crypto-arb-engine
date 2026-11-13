@@ -40,13 +40,19 @@ def test_normalize_funding_with_and_without_predicted():
     raw = {
         "fundingRate": "0.0001",
         "nextFundingTimestamp": 1731570000000,
-        "predictedRate": "-0.0002",
+        # dif D3: ccxt exposes the prediction as nextFundingRate; the old
+        # 'predictedRate' key does not exist and must be ignored
+        "nextFundingRate": "-0.0002",
+        "predictedRate": "999",
     }
     rate = normalize_funding("okx", "BTC/USD:USD-310404", raw)
     assert rate.rate and rate.predicted_rate < 0
     raw2 = {"fundingRate": "0.0001"}
     rate2 = normalize_funding("okx", "BTC/USD:USD-310404", raw2)
-    assert rate2.predicted_rate is None and rate2.next_funding_ts is None
+    assert rate2.predicted_rate is None
+    # dif D2: a venue with no timestamps gets a synthesized settlement
+    # watermark so funding actually accrues (was None -> accrual dead)
+    assert rate2.next_funding_ts is not None
 
 
 def test_local_timestamp_is_monotonic_ns():
@@ -87,3 +93,29 @@ def test_crossed_book_rejected_at_normalization():
     b = normalize_book("kraken", "BTC/USD", {"bids": [[99, 1]], "asks": [[100, 1]]})
     from app.core.decimals import D as _D
     assert b.best_bid.price == _D("99")
+
+
+def test_next_settlement_ts_boundaries():
+    from datetime import datetime, timezone
+
+    from app.connectors.ccxt_manager import next_settlement_ts
+    now = datetime(2026, 11, 13, 11, 30, tzinfo=timezone.utc)
+    assert next_settlement_ts(now, 1) == datetime(2026, 11, 13, 12, 0, tzinfo=timezone.utc)
+    assert next_settlement_ts(now, 8) == datetime(2026, 11, 13, 16, 0, tzinfo=timezone.utc)
+    on_boundary = datetime(2026, 11, 13, 12, 0, tzinfo=timezone.utc)
+    assert next_settlement_ts(on_boundary, 1) == datetime(2026, 11, 13, 13, 0, tzinfo=timezone.utc)
+
+
+def test_normalize_funding_prefers_funding_timestamp_over_next():
+    from datetime import datetime, timezone
+
+    raw = {
+        "fundingRate": "0.0001",
+        # dif D5: fundingTimestamp (next settlement) wins over
+        # nextFundingTimestamp (the settlement after), so the watermark jump
+        # detects missed payments
+        "fundingTimestamp": 1731570000000,
+        "nextFundingTimestamp": 1731598800000,
+    }
+    rate = normalize_funding("okx", "BTC/USD:USD-310404", raw)
+    assert rate.next_funding_ts == datetime.fromtimestamp(1731570000, tz=timezone.utc)

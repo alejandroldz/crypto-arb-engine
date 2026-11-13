@@ -54,6 +54,7 @@ def evaluate_carry(
     last_payment_ts: datetime | None,
     rate: FundingRate | None,
     perp_book: L2OrderBook | None,
+    prev_rate: FundingRate | None = None,
     risk: CarryPositionRisk,
     liquidation_buffer_pct: Decimal,
     uta: UtaAccountState | None = None,
@@ -98,9 +99,19 @@ def evaluate_carry(
         elif rate.next_funding_ts < last_payment_ts:
             uncertain = True  # out-of-order/replayed snapshot: ignore payment
         elif rate.next_funding_ts > last_payment_ts:
-            # approximation: accrue at the newly observed rate (signed:
-            # a negative rate is a cost and must be accounted, F04)
-            accrual = mul(mul(D(qty_base), D(perp_entry_vwap)), rate.rate)
+            # dif D5: the payment at the settlement that just passed is the
+            # rate of the period that ENDED. OKX reports the new period's
+            # rate right after the cut, so accrue with the last rate
+            # observed BEFORE it (prev_rate). Kraken's rate is trailing
+            # (it IS the just-settled hour), so the current rate is right.
+            if rate.exchange == "krakenfutures" or prev_rate is None:
+                accrual_rate = rate.rate
+                if prev_rate is None and rate.exchange != "krakenfutures":
+                    uncertain = True  # no pre-cut observation: approximation
+            else:
+                accrual_rate = prev_rate.rate
+            # signed: a negative rate is a cost and must be accounted (F04)
+            accrual = mul(mul(D(qty_base), D(perp_entry_vwap)), D(accrual_rate))
             gap_s = (rate.next_funding_ts - last_payment_ts).total_seconds()
             if gap_s > Decimal("3") * D(rate.interval_hours) * 3600 / 2:
                 uncertain = True  # payments were missed while unobserved

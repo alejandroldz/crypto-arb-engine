@@ -794,11 +794,13 @@ async def run() -> None:
                 if carry.books_stale_warned:
                     carry.books_stale_warned = False
                     await notifier.send(f"VENUE RECOVERED {key}: gestion reanudada")
+                cur_rate = funding.get(carry.funding_key)
                 decision = evaluate_carry(
                     qty_base=carry.fill.qty_base,
                     perp_entry_vwap=carry.fill.perp_vwap,
                     last_payment_ts=carry.last_payment_ts,
-                    rate=funding.get(carry.funding_key),
+                    rate=cur_rate,
+                    prev_rate=carry.last_rate,
                     perp_book=books.get(carry.perp_key),
                     risk=carry.risk,
                     liquidation_buffer_pct=settings.liquidation_buffer_pct,
@@ -819,6 +821,8 @@ async def run() -> None:
                     logger.warning("funding accrual uncertain for %s (missed payments)", key)
                     await notifier.send(f"ACCRUAL UNCERTAIN {key}: missed funding payments")
                 carry.last_payment_ts = decision.new_payment_ts
+                if cur_rate is not None:
+                    carry.last_rate = cur_rate
                 try:
                     if decision.accrual != ZERO:  # F04: costs count too
                         carry.funding_collected += decision.accrual

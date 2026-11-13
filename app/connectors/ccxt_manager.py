@@ -12,7 +12,7 @@ from decimal import Decimal
 import gc
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import ccxt.pro as ccxtpro
 
@@ -131,23 +131,50 @@ def _parse_interval_hours(raw: dict, default: int = 8) -> int:
     return default
 
 
+def next_settlement_ts(now: datetime, interval_hours: int) -> datetime:
+    """Next funding settlement boundary after `now` (pure, testable).
+
+    dif D2: some venues (Kraken Futures via ccxt) report NO funding
+    timestamps at all. The accrual watermark then derives from the wall
+    clock and the venue's known interval (Kraken settles hourly).
+    """
+    epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
+    period_s = int(interval_hours) * 3600
+    secs = int((now - epoch).total_seconds())
+    return epoch + timedelta(seconds=(secs // period_s + 1) * period_s)
+
+
 def normalize_funding(exchange_id: str, symbol: str, raw: dict) -> FundingRate:
     """ccxt funding rate payload -> canonical FundingRate."""
-    next_ts = raw.get("nextFundingTimestamp")
+    interval_hours = _parse_interval_hours(raw)
+    # dif D5: prefer fundingTimestamp (the NEXT settlement, e.g. OKX
+    # fundingTime). nextFundingTimestamp is the settlement AFTER that; as an
+    # accrual watermark it always jumps exactly one interval, defeating the
+    # missed-payments gap check.
+    next_ts = raw.get("fundingTimestamp") or raw.get("nextFundingTimestamp")
+    if next_ts:
+        next_funding_ts = datetime.fromtimestamp(next_ts / 1000, tz=timezone.utc)
+    elif interval_hours > 0:
+        # dif D2: Kraken gives no timestamps - synthesize the next boundary
+        # so the accrual watermark advances (funding was never accrued!).
+        next_funding_ts = next_settlement_ts(datetime.now(timezone.utc), interval_hours)
+    else:
+        next_funding_ts = None
     # F08: quarantine implausible magnitudes (rate=10 = +1000% per interval)
     rate = funding_rate_plausible(raw.get("fundingRate") or "0")
-    predicted = raw.get("predictedRate")
+    # dif D3: ccxt exposes the prediction as 'nextFundingRate', never
+    # 'predictedRate' (the old key was always None -> flip checks used the
+    # stale trailing rate).
+    predicted = raw.get("nextFundingRate")
     if predicted is not None:
         predicted = str(check_magnitude(D(str(predicted)), "predicted rate"))
     return FundingRate(
         exchange=exchange_id,
         symbol=symbol,
         rate=str(rate),
-        interval_hours=_parse_interval_hours(raw),
+        interval_hours=interval_hours,
         local_ts_ns=time.monotonic_ns(),
-        next_funding_ts=(
-            datetime.fromtimestamp(next_ts / 1000, tz=timezone.utc) if next_ts else None
-        ),
+        next_funding_ts=next_funding_ts,
         predicted_rate=predicted,
     )
 

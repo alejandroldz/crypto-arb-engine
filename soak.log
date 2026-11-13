@@ -151,3 +151,27 @@ margin: UNIFIED 90% util | BTC ratio 95% | MMR n/a (warn 65%, unwind 75%) | max
 2026-11-13 22:19:04,096 main INFO real account health krakenfutures: equity 0 mmr 0
 2026-11-13 22:19:04,796 main INFO real account health okx: equity 0 mmr 0
 2026-11-13 22:19:30,126 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007131817901248971 vs polled mean -0.000005097848417836454545454545455 - entries quarantined
+2026-11-13 22:20:01,454 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007131817901248971 vs polled mean -0.000005028503177480641791044776119 - entries quarantined
+2026-11-13 22:20:04,345 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 22:20:05,101 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 22:20:32,341 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007131817901248971 vs polled mean -0.000004961197960054338235294117647 - entries quarantined
+2026-11-13 22:21:03,423 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007131817901248971 vs polled mean -0.000004895849862903623188405797101 - entries quarantined
+2026-11-13 22:21:04,623 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 22:21:05,394 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 22:21:34,631 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007131817901248971 vs polled mean -0.000004832368967000857142857142857 - entries quarantined
+2026-11-13 22:22:04,927 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 22:22:05,563 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 22:22:06,108 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007131817901248971 vs polled mean -0.000004770677003493901408450704225 - entries quarantined
+2026-11-13 22:22:36,453 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007131817901248971 vs polled mean -0.000004710702750537097222222222222 - entries quarantined
+2026-11-13 22:23:05,149 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 22:23:05,896 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 22:23:07,059 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007131817901248971 vs polled mean -0.000004652371043256863013698630137 - entries quarantined
+2026-11-13 22:23:38,350 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007131817901248971 vs polled mean -0.000004595615187236540540540540541 - entries quarantined
+2026-11-13 22:24:05,412 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 22:24:06,055 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 22:24:09,100 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007131817901248971 vs polled mean -0.000004540371558704653333333333333 - entries quarantined
+2026-11-13 22:24:40,187 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007131817901248971 vs polled mean -0.000004486577179171184210526315789 - entries quarantined
+2026-11-13 22:25:05,820 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 22:25:06,518 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 22:25:10,804 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007131817901248971 vs polled mean -0.000004434178585344610389610389610 - entries quarantined
+2026-11-13 22:25:43,512 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007131817901248971 vs polled mean -0.000004383121190322525641025641026 - entries quarantined

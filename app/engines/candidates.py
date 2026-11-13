@@ -41,6 +41,7 @@ class OpenCarry:
     funding_collected: Decimal
     last_payment_ts: object
     accrual_uncertain: bool = False
+    last_rate: object = None  # dif D5: pre-cut rate for OKX accrual
     uta: "UtaAccountState | None" = None
     mmr_warned: bool = False
     books_stale_warned: bool = False
