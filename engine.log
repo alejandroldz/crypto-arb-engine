@@ -282,3 +282,14 @@ client_session: <aiohttp.client.ClientSession object at 0x7f3a321efb90>
 2026-11-13 16:38:38,386 ingestion WARNING book feed kraken BTC/USD: NetworkError: Connection closed by remote server, closing code 1006
 2026-11-13 16:38:38,386 ingestion WARNING book feed krakenfutures BTC/USD:USD: NetworkError: Connection closed by remote server, closing code 1006
 2026-11-13 16:38:38,386 ingestion WARNING book feed krakenfutures ETH/USD:USD: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-13 16:38:40,447 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 16:38:41,011 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 16:38:43,651 ingestion WARNING book feed kraken ETH/USD: RequestTimeout: Connection to wss://ws.kraken.com/v2 timed out due to a ping-pong keepalive missing on time
+2026-11-13 16:38:43,898 ingestion WARNING book feed kraken SOL/USD: RequestTimeout: Connection to wss://ws.kraken.com/v2 timed out due to a ping-pong keepalive missing on time
+2026-11-13 16:38:54,085 ingestion WARNING book feed okx SOL/USD:USD-310404: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-13 16:38:54,392 ingestion WARNING book feed okx BTC/USD:USD-310404: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-13 16:38:54,597 ingestion WARNING book feed okx ETH/USD:USD-310404: RequestTimeout: Connection to wss://ws.okx.com:443/ws/v5/public timed out due to a ping-pong keepalive missing on time
+2026-11-13 16:39:40,553 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 16:39:41,514 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 16:40:40,841 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 16:40:41,604 main INFO real account health okx: equity 0 mmr 0
