@@ -7,3 +7,6 @@
 2026-11-13 14:03:00,251 main INFO real account health okx: equity 0 mmr 0
 2026-11-13 14:04:00,138 main INFO real account health krakenfutures: equity 0 mmr 0
 2026-11-13 14:04:00,787 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 14:04:59,142 ingestion WARNING book feed kraken BTC/USD: RequestTimeout: Connection to wss://ws.kraken.com/v2 timed out due to a ping-pong keepalive missing on time
+2026-11-13 14:04:59,160 ingestion WARNING book feed krakenfutures BTC/USD:USD: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-13 14:04:59,162 ingestion WARNING book feed okx BTC/USD:USD-310404: NetworkError: Connection closed by remote server, closing code 1006
