@@ -277,3 +277,8 @@ client_session: <aiohttp.client.ClientSession object at 0x7f3a321efb90>
 2026-11-13 16:07:50,137 ingestion WARNING book feed kraken ETH/USD: NetworkError: Connection closed by remote server, closing code 1006
 2026-11-13 16:07:50,139 ingestion WARNING book feed kraken BTC/USD: NetworkError: Connection closed by remote server, closing code 1006
 2026-11-13 16:07:50,369 ingestion WARNING book feed kraken SOL/USD: RequestTimeout: Connection to wss://ws.kraken.com/v2 timed out due to a ping-pong keepalive missing on time
+2026-11-13 16:08:07,518 ingestion WARNING book feed okx SOL/USD:USD-310404: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-13 16:08:07,672 ingestion WARNING book feed okx BTC/USD:USD-310404: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-13 16:38:38,386 ingestion WARNING book feed kraken BTC/USD: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-13 16:38:38,386 ingestion WARNING book feed krakenfutures BTC/USD:USD: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-13 16:38:38,386 ingestion WARNING book feed krakenfutures ETH/USD:USD: NetworkError: Connection closed by remote server, closing code 1006
