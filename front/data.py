@@ -20,6 +20,9 @@ DUCKDB_PATH = ROOT / "arb_ticks.duckdb"
 SQLITE_PATH = ROOT / "arb_state.db"
 ENGINE_LOG = ROOT / "engine.log"
 
+# venues the engine trades today; older soak artifacts may carry removed venues
+ACTIVE_VENUES = ("kraken", "krakenfutures", "okx")
+
 
 def funding_log() -> pd.DataFrame:
     """All funding snapshots from the CSV log (survives engine restarts)."""
@@ -28,7 +31,8 @@ def funding_log() -> pd.DataFrame:
     df = pd.read_csv(FUNDING_CSV)
     df["ts"] = pd.to_datetime(df["ts"], utc=True, errors="coerce")
     df["rate"] = pd.to_numeric(df["rate"], errors="coerce")
-    return df.dropna(subset=["ts"])
+    df = df.dropna(subset=["ts"])
+    return df[df["exchange"].isin(ACTIVE_VENUES)]
 
 
 def latest_books() -> pd.DataFrame:
@@ -42,6 +46,7 @@ def latest_books() -> pd.DataFrame:
             """
             SELECT exchange, symbol, best_bid, best_ask, ts_utc
             FROM book_snapshots
+            WHERE exchange IN (SELECT unnest(['kraken', 'krakenfutures', 'okx']))
             QUALIFY row_number() OVER (
                 PARTITION BY exchange, symbol ORDER BY ts_utc DESC
             ) = 1
@@ -89,6 +94,8 @@ def account_health() -> list[dict]:
         for line in fh:
             m = pattern.match(line)
             if m:
+                if m.group(2) not in ACTIVE_VENUES:
+                    continue
                 latest[m.group(2)] = {
                     "venue": m.group(2),
                     "equity": m.group(3),
