@@ -200,6 +200,7 @@ def _settings() -> Settings:
     return Settings(
         perp_perp_enabled=True, sizing_mode="fixed",
         min_net_profit_usd=Decimal("0.01"), min_funding_history=10,
+        max_book_age_ms=60_000,  # test books age during simulated maker waits
     )
 
 
@@ -339,3 +340,17 @@ async def test_pp_never_elevates_budget_to_minimum(tmp_path):
     await pp_handle_funding(ctx, evt)
     assert ctx.open == {}
     assert await repo.open_positions() == []
+
+
+async def test_pp_unwind_deferred_on_stale_books(tmp_path):
+    """F12: no simulated execution on a dead venue - position stays open."""
+    ctx, repo = await _ctx_with_position(tmp_path)
+    pos = ctx.open["BTC:krakenfutures->okx"]
+    pos.opened_ns = time.monotonic_ns() - (pos.opp.holding_hours + 1) * NS_PER_HOUR
+    # venue silent for an hour: unwind must defer, not execute on old prices
+    for b in ctx.books.values():
+        object.__setattr__(b, "local_ts_ns", time.monotonic_ns() - 3_600_000_000_000)
+    ctx.settings.max_book_age_ms = 2_000
+    await pp_manage(ctx)
+    assert "BTC:krakenfutures->okx" in ctx.open
+    assert await repo.open_positions() != []

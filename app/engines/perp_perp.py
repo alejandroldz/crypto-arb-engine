@@ -377,6 +377,13 @@ async def _try_open(ctx: PpContext, base: str) -> None:
             long_key, short_key = f"{long_ex}:{long_sym}", f"{short_ex}:{short_sym}"
             if long_key not in ctx.books or short_key not in ctx.books:
                 continue
+            # F12: both legs must be FRESH - history never substitutes a
+            # current snapshot; a venue down for hours is not tradable
+            max_age_ns = int(settings.max_book_age_ms) * 1_000_000
+            now_ns = time.monotonic_ns()
+            if (now_ns - ctx.books[long_key].local_ts_ns > max_age_ns
+                    or now_ns - ctx.books[short_key].local_ts_ns > max_age_ns):
+                continue
             short_hist = await asyncio.to_thread(
                 ctx.ticks.funding_history, short_ex, short_sym)
             long_hist = await asyncio.to_thread(
@@ -503,6 +510,14 @@ async def pp_manage(ctx: PpContext) -> None:
             elif D(short_rate.rate) < 0:
                 reason = f"short leg pagando funding ({short_rate.rate})"
         if reason is None:
+            continue
+        # no simulated execution on a dead venue: defer the unwind until
+        # both books are fresh again (position stays open, alert once)
+        max_age_ns = int(ctx.settings.max_book_age_ms) * 1_000_000
+        now_b_ns = time.monotonic_ns()
+        if (now_b_ns - ctx.books[pos.long_key].local_ts_ns > max_age_ns
+                or now_b_ns - ctx.books[pos.short_key].local_ts_ns > max_age_ns):
+            logger.warning("pp unwind deferred (stale books) %s", pair_key)
             continue
         def fetch(lk=pos.long_key, sk=pos.short_key):
             return ctx.books[lk], ctx.books[sk]

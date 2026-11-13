@@ -70,6 +70,9 @@ class Settings(BaseSettings):
     pp_max_notional_per_venue_usd: Decimal = Decimal("4000")
     pp_max_notional_per_pair_usd: Decimal = Decimal("2500")
     pp_min_notional_usd: Decimal = Decimal("250")
+    # frescura exigida a los libros para operar PP (ms) - un venue caido
+    # no es operable
+    max_book_age_ms: int = 2000
     # perp-perp (modulo 1): arbitraje de funding entre venues, sin pata spot
     perp_perp_enabled: bool = False  # activado via .env tras validacion
     pp_min_net_profit_usd: Decimal = Decimal("2")
@@ -77,6 +80,9 @@ class Settings(BaseSettings):
     pp_max_notional_per_venue_usd: Decimal = Decimal("4000")
     pp_max_notional_per_pair_usd: Decimal = Decimal("2500")
     pp_min_notional_usd: Decimal = Decimal("250")
+    # frescura exigida a los libros para operar PP (ms) - un venue caido
+    # no es operable
+    max_book_age_ms: int = 2000
     # fee oracle: guardrail - cambio relativo de taker fee que bloquea entradas (%)
     fee_change_block_pct: Decimal = Decimal("20")
     fee_refresh_hours: Decimal = Decimal("4")
