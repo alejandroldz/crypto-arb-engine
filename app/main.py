@@ -252,6 +252,38 @@ async def run() -> None:
 
     books_q = bus.subscribe(BOOKS_TOPIC)
     funding_q = bus.subscribe(FUNDING_TOPIC)
+
+    async def books_consumer() -> None:
+        """op.#1: books drain independently of management waits. Before this,
+        a 60s maker wait left every position managing itself against book
+        snapshots a minute old; now `books` is always the freshest snapshot
+        that passed the F01 guards."""
+        while not stop.is_set():
+            try:
+                book = await asyncio.wait_for(books_q.get(), timeout=0.5)
+            except asyncio.TimeoutError:
+                continue
+            bk = f"{book.exchange}:{book.symbol}"
+            # F01: never let a venue serve an old snapshot as new
+            if remote_book_stale(book.exchange_ts):
+                continue
+            prev_book = books.get(bk)
+            if prev_book is not None and sequence_regressed(
+                prev_book.sequence, prev_book.exchange_ts,
+                book.sequence, book.exchange_ts,
+            ):
+                continue  # F01: replay/duplicate, keep the newer snapshot
+            books[bk] = book
+            # sample: 1 snapshot/s per symbol is enough for VWAP/slippage
+            # analysis - every tick floods the store and the sandbox RAM
+            now_mono = time.monotonic()
+            if now_mono - last_book_record.get(bk, 0.0) >= 1.0:
+                last_book_record[bk] = now_mono
+                try:
+                    await asyncio.to_thread(ticks.record_book, book)
+                except Exception as exc:
+                    # F09: a bad record must not kill the consumer
+                    logger.warning("book persist dropped %s: %s", bk, exc)
     books: dict[str, L2OrderBook] = {}
     funding: dict[str, FundingRate] = {}
     opportunities: deque[FundingOpportunity] = deque(maxlen=MAX_OPPORTUNITIES_KEPT)
@@ -532,6 +564,8 @@ async def run() -> None:
         tasks.append(asyncio.create_task(screener_loop()))
     # audit fix: fee freshness must not depend on the screener being on
     tasks.append(asyncio.create_task(fee_refresh_loop()))
+    # op.#1: the books consumer runs as its own task (see def above)
+    tasks.append(asyncio.create_task(books_consumer()))
 
     async def close_carry(key: str, carry: OpenCarry, reason: str) -> None:
         nonlocal realized_pnl
@@ -561,30 +595,6 @@ async def run() -> None:
     with Live(console=console, refresh_per_second=2) as live:
         while not stop.is_set():
             now_ns = time.monotonic_ns()
-
-            while not books_q.empty():
-                book = books_q.get_nowait()
-                bk = f"{book.exchange}:{book.symbol}"
-                # F01: never let a venue serve an old snapshot as new
-                if remote_book_stale(book.exchange_ts):
-                    continue
-                prev_book = books.get(bk)
-                if prev_book is not None and sequence_regressed(
-                    prev_book.sequence, prev_book.exchange_ts,
-                    book.sequence, book.exchange_ts,
-                ):
-                    continue  # F01: replay/duplicate, keep the newer snapshot
-                books[bk] = book
-                # sample: 1 snapshot/s per symbol is enough for VWAP/slippage
-                # analysis - every tick floods the store and the sandbox RAM
-                now_mono = time.monotonic()
-                if now_mono - last_book_record.get(bk, 0.0) >= 1.0:
-                    last_book_record[bk] = now_mono
-                    try:
-                        await asyncio.to_thread(ticks.record_book, book)
-                    except Exception as exc:
-                        # F09: a bad record must not kill the management loop
-                        logger.warning("book persist dropped %s: %s", bk, exc)
 
             while not funding_q.empty():
                 rate = funding_q.get_nowait()
