@@ -1,0 +1,36 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    # Sin despliegue hasta que la VM exista: activar la variable DEPLOY_ENABLED=true
+    # en GitHub (Settings > Secrets and variables > Actions > Variables) junto con
+    # los secrets VM_HOST / VM_USER / VM_SSH_KEY. Ver DEPLOY.md.
+    if: vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Tests (no se despliega codigo rojo)
+        run: |
+          uv venv && uv pip install -e ".[dev]"
+          uv run pytest -q
+      - name: Deploy a la VM por SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          script: |
+            set -e
+            cd /opt/crypto-arb
+            git pull --ff-only
+            docker compose build
+            docker compose up -d
+            docker compose ps
+            sleep 15
+            docker inspect --format='{{.State.Health.Status}}' crypto-arb-engine-1 || true
