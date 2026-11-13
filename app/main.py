@@ -375,6 +375,9 @@ async def run() -> None:
             budget_remaining=pp_budget,
             realized_pnl=pp_realized,
         )
+        carry_ctx.external_allocated = lambda: sum(
+            D(pos.opp.notional) for pos in pp_ctx.open.values()
+        )
         now_ns = time.monotonic_ns()
         for pos in await repo.open_positions():
             if not pos.exchange_spot.endswith("(long)"):

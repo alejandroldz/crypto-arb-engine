@@ -67,6 +67,9 @@ class CarryContext:
     # configured. The screener (or config default) owns the contents; an
     # open carry is never closed by removal from this set.
     eligible: "set[str] | None" = None
+    # notional used by OTHER strategies (e.g. perp-perp); run() wires this
+    # so the portfolio budget is shared, not per-module
+    external_allocated: "Callable[[], Decimal] | None" = None
 
 
 async def handle_funding_candidate(
@@ -113,6 +116,8 @@ async def handle_funding_candidate(
         from app.engines.sizing import dynamic_notional
 
         allocated_now = sum(D(c.opp.notional) for c in ctx.open_carries.values())
+        if ctx.external_allocated is not None:
+            allocated_now += D(ctx.external_allocated())
         budget = (
             D(ctx.uta_state.notional) - allocated_now
             if ctx.uta_state is not None
@@ -149,6 +154,8 @@ async def handle_funding_candidate(
         # portfolio budget: total open notional + this carry must fit the
         # utilization cap, or several small carries silently over-deploy
         allocated = sum(D(c.opp.notional) for c in ctx.open_carries.values())
+        if ctx.external_allocated is not None:
+            allocated += D(ctx.external_allocated())
         if allocated + D(opp.notional) > ctx.uta_state.notional:
             logger.info("UTA budget full, skipping %s", fkey)
             return None

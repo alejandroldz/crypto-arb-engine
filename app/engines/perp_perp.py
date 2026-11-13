@@ -389,13 +389,17 @@ async def _try_open(ctx: PpContext, base: str) -> None:
                 D(settings.pp_max_notional_per_venue_usd) - _venue_exposure(ctx, long_ex),
                 D(settings.pp_max_notional_per_venue_usd) - _venue_exposure(ctx, short_ex),
             )
+            # fix: never elevate a short budget to the minimum - if the
+            # portfolio cannot afford the minimum, there is no trade
+            if budget < D(settings.pp_min_notional_usd):
+                continue
             opp = detect_perp_perp(
                 base=base, long_exchange=long_ex, long_symbol=long_sym,
                 short_exchange=short_ex, short_symbol=short_sym,
                 long_history=long_hist, short_history=short_hist,
                 long_interval_h=D(settings.funding_interval_h_for(long_ex)),
                 short_interval_h=D(settings.funding_interval_h_for(short_ex)),
-                notional=max(D(settings.pp_min_notional_usd), budget),
+                notional=budget,
                 holding_hours=int(settings.pp_holding_hours),
                 maker_fee_bps=maker_bps, taker_fee_bps=taker_bps,
                 slippage_buffer_bps=D(settings.slippage_buffer_bps),

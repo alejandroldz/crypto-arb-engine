@@ -311,3 +311,31 @@ async def test_accrual_capped_during_gap(tmp_path):
     await pp_handle_funding(ctx, evt)
     # capped at 2 intervals (16h): 4000*0.0008*16/8 = 6.4, NOT 400
     assert abs(pos.funding_collected_net - D("6.4")) < D("0.01")
+
+
+async def test_pp_never_elevates_budget_to_minimum(tmp_path):
+    """Fix: budget 0 -> NO trade (before: opened at the 250 minimum)."""
+    repo = Repository(f"sqlite+aiosqlite:///{tmp_path}/t.sqlite")
+    await repo.init()
+    t = trader(repo)
+    settings = _settings()
+    settings.perp_perp_enabled = True
+    now_ns = time.monotonic_ns()
+    ctx = PpContext(
+        settings=settings, paper=t, repo=repo, ticks=None,
+        books={f"{LONG[0]}:{LONG[1]}": book(*LONG, 99.9, 100.0),
+               f"{SHORT[0]}:{SHORT[1]}": book(*SHORT, 100.1, 100.2)},
+        funding={}, breaker=_Breaker(), notifier=_Notifier(),
+        open={}, budget_remaining=lambda: D("0"), realized_pnl=[ZERO],
+    )
+
+    class _Ticks:
+        def funding_history(self, ex, sym):
+            return [D("0.0005")] * 40 if ex == "okx" else [D("0.00005")] * 40
+
+    ctx.ticks = _Ticks()
+    evt = FundingRate(exchange="okx", symbol=SHORT[1], rate=D("0.0008"),
+                      local_ts_ns=now_ns)
+    await pp_handle_funding(ctx, evt)
+    assert ctx.open == {}
+    assert await repo.open_positions() == []

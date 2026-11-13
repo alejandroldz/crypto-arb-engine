@@ -193,3 +193,18 @@ async def test_breaker_rate_limit_blocks_entry_before_execution():
     assert c is None
     assert ctx.paper.opened == 0
     assert ctx.breaker.halted
+
+
+@pytest.mark.asyncio
+async def test_carry_budget_counts_perp_perp_allocation():
+    """Fix: the shared portfolio budget subtracts PP usage from carries."""
+    settings = Settings(
+        min_net_profit_usd=Decimal("0.01"), min_funding_history=10,
+    )
+    ctx = _ctx(settings)
+    # UTA budget 9000; PP already uses 7000 -> 3000-carry no longer fits
+    ctx.external_allocated = lambda: Decimal("7000")
+    now = time.monotonic_ns()
+    c = await handle_funding_candidate(ctx, _rate("krakenfutures", "BTC/USD:USD"), now)
+    assert c is None
+    assert ctx.paper.opened == 0
