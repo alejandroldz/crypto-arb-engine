@@ -119,6 +119,13 @@ def approve_trade(net_profit: Decimal, min_net_profit_usd: Decimal) -> TradeAppr
     """The single approval gate: strictly greater than the configured minimum."""
     net = D(net_profit)
     minimum = D(min_net_profit_usd)
+    # fuzz F2: Infinity approved a trade and NaN crashed the only economic
+    # gate with a raw InvalidOperation. Non-finite NEVER trades.
+    if not net.is_finite() or not minimum.is_finite():
+        return TradeApproval(
+            approved=False, net_profit=net,
+            reason="non-finite net profit or minimum rejected",
+        )
     approved = net > minimum
     return TradeApproval(
         approved=approved,

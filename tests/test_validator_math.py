@@ -73,3 +73,12 @@ def test_approve_trade_strictly_greater():
     assert not approve_trade(D("5"), D("5")).approved
     assert approve_trade(D("5.01"), D("5")).approved
     assert not approve_trade(D("-1"), D("5")).approved
+
+
+def test_approve_trade_rejects_non_finite():
+    a = approve_trade("Infinity", "5")
+    assert not a.approved and "non-finite" in a.reason
+    a = approve_trade("NaN", "5")
+    assert not a.approved  # antes: InvalidOperation cruda
+    a = approve_trade("10", "Infinity")
+    assert not a.approved
