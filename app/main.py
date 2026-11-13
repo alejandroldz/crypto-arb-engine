@@ -403,6 +403,7 @@ async def run() -> None:
     last_mmr: Decimal | None = None
     last_health_check = 0.0
     last_tick_flush = 0.0
+    last_book_prune = 0.0
     last_book_record: dict[str, float] = {}
 
     # --- restart recovery: rebuild open carries from SQLite ---
@@ -756,6 +757,17 @@ async def run() -> None:
             if time.monotonic() - last_tick_flush > 30:
                 last_tick_flush = time.monotonic()
                 await asyncio.to_thread(ticks.flush)
+            # caos H9: book snapshots retention (funding history is kept)
+            if time.monotonic() - last_book_prune > 3600:
+                last_book_prune = time.monotonic()
+                try:
+                    pruned = await asyncio.to_thread(
+                        ticks.prune_books, int(settings.book_retention_days)
+                    )
+                    if pruned:
+                        logger.info("book retention: %d snapshots pruned", pruned)
+                except Exception as exc:
+                    logger.warning("book prune failed: %s", exc)
 
             # real account health (read-only keys); simulated UTA is the fallback
             health_venues = []

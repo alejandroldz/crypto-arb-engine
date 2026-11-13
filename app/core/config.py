@@ -111,6 +111,9 @@ class Settings(BaseSettings):
     # funding is underestimated 8x (found 2026-11-13)
     funding_interval_hours: str = "krakenfutures:1,okx:8"
 
+    # caos H9: book snapshot retention in duckdb (funding history kept)
+    book_retention_days: int = 3
+
     # staleness gate (RISK 3)
     max_data_age_ms_funding: int = 2000
 

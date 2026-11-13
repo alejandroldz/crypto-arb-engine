@@ -22,10 +22,25 @@ class TelegramNotifier:
         self._chat_id = chat_id
         self._timeout_s = timeout_s
 
+    _OUTBOX_MAX_BYTES = 1_000_000
+
     def _outbox(self, text: str) -> None:
         """op.#17: a failed alert is never silently lost - it lands in a
-        durable outbox file for inspection/replay."""
+        durable outbox file for inspection/replay.
+
+        caos H9: the outbox is append-only; rotate at 1MB keeping the
+        newest half so it can never fill the disk."""
         try:
+            path = Path(self._outbox_path)
+            if path.exists() and path.stat().st_size > self._OUTBOX_MAX_BYTES:
+                keep = path.read_bytes()[-self._OUTBOX_MAX_BYTES // 2:]
+                # drop a possibly-partial first line after the cut
+                nl = keep.find(b"\n")
+                tmp = path.with_suffix(".tmp")
+                # no newline in the tail = one huge partial line: drop it
+                # whole rather than corrupt the next JSON entry
+                tmp.write_bytes(keep[nl + 1:] if nl != -1 else b"")
+                tmp.replace(path)
             with open(self._outbox_path, "a", encoding="utf-8") as fh:
                 fh.write(json.dumps({
                     "ts": datetime.now(timezone.utc).isoformat(),

@@ -74,6 +74,24 @@ class TickStore:
         if len(self._book_buf) >= 200:
             self._flush_locked()
 
+    def prune_books(self, keep_days: int = 3) -> int:
+        """caos H9: book_snapshots grows ~130MB/day; funding history is
+        small and analytically valuable, so only books are pruned.
+        Returns rows deleted."""
+        from datetime import datetime, timedelta
+        cutoff = datetime.utcnow() - timedelta(days=keep_days)
+        with self._lock:
+            n = self._conn.execute(
+                "SELECT count(*) FROM book_snapshots WHERE ts_utc < ?",
+                [cutoff],
+            ).fetchone()[0]
+            if n:
+                self._conn.execute(
+                    "DELETE FROM book_snapshots WHERE ts_utc < ?", [cutoff]
+                )
+                self._conn.execute("CHECKPOINT")
+            return n
+
     def flush(self) -> None:
         with self._lock:
             self._flush_locked()
