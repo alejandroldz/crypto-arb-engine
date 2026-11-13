@@ -280,6 +280,7 @@ async def run() -> None:
         watch data freshness per feed (a hung feed that never raises is
         detected by the absence of fresh books, not by its exception)."""
         outage_alerted: set[str] = set()
+        giveup_alerted_ns: dict[str, int] = {}
         while not stop.is_set():
             await asyncio.sleep(30)
             for name, (t, ev, factory) in list(feed_tasks.items()):
@@ -299,6 +300,20 @@ async def run() -> None:
                 if n == 1 or n % 10 == 0:
                     await notifier.send(f"FEED DIED {name}: {exc} - restart #{n}")
                 feed_tasks.pop(name, None)
+                if n >= 20:
+                    # caos: a feed failing 20 consecutive restarts has a
+                    # permanent problem (bad symbol, config, venue down) -
+                    # an infinite restart loop burns CPU and alerts forever.
+                    # Give up loudly; the screener re-attempts on its next
+                    # sweep if the symbol is still eligible.
+                    last = giveup_alerted_ns.get(name, 0)
+                    if time.monotonic_ns() - last >= 3600 * 10**9:
+                        giveup_alerted_ns[name] = time.monotonic_ns()
+                        await notifier.send(
+                            f"FEED GIVEN UP {name} tras 20 reinicios: {exc}"
+                        )
+                    feed_restart_count[name] = 0
+                    continue
                 await asyncio.sleep(backoff)
                 if name not in feed_tasks:  # the screener may have cut it
                     start_feed(name, factory)

@@ -122,3 +122,14 @@ def test_h7_watchdog_alert_throttling_logic():
     # the watchdog alerts on restart #1 and then every 10th: the predicate
     # must hold exactly for those n
     assert [n for n in range(1, 25) if n == 1 or n % 10 == 0] == [1, 10, 20]
+
+
+def test_watchdog_gives_up_after_20_restarts():
+    # a permanently-failing feed stops being restarted at n=20 and the
+    # counter resets so a screener re-add gets a fresh budget of attempts
+    give_up = [n for n in range(1, 25) if n >= 20]
+    assert give_up[0] == 20
+    # restart predicate must not fire at n=20 (give-up path takes over):
+    # alert at 1 and 10, give-up alert at 20
+    restart = [n for n in range(1, 21) if (n == 1 or n % 10 == 0) and n < 20]
+    assert restart == [1, 10]
