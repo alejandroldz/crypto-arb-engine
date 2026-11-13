@@ -6,9 +6,11 @@ from app.engines.liquidity import vwap_for_base, vwap_for_quote
 
 
 def _book(levels):
+    desc = sorted(levels, key=lambda l: l.price, reverse=True)
+    asc = sorted(levels, key=lambda l: l.price)
     return L2OrderBook(
         exchange="t", symbol="X/USD",
-        bids=tuple(levels), asks=tuple(levels), local_ts_ns=1,
+        bids=tuple(desc), asks=tuple(asc), local_ts_ns=1,
     )
 
 
