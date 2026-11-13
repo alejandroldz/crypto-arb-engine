@@ -136,3 +136,29 @@ def test_roundtrip_cost_and_bases():
     assert roundtrip_cost_bps(Decimal("40"), Decimal("5"), Decimal("5")) == Decimal("100")
     keys = {"okx:BTC/USD:USD-310404", "krakenfutures:ETH/USD:USD"}
     assert eligible_bases(keys) == {"BTC", "ETH"}
+
+
+def test_omission_is_one_fail_event_not_instant_removal():
+    h = Hysteresis()
+    sweep = lambda: run_sweep([_m()], h, **KW)
+    sweep()
+    assert sweep() == {"okx:BTC/USD:USD-310404"}  # 2 passes: in
+    # connector omits it (low volume pre-filter): ONE omission keeps it
+    assert run_sweep([], h, **KW) == {"okx:BTC/USD:USD-310404"}
+    assert run_sweep([], h, **KW) == {"okx:BTC/USD:USD-310404"}
+    # three consecutive omissions: out
+    assert run_sweep([], h, **KW) == set()
+
+
+def test_pass_omit_pass_does_not_reenter():
+    h = Hysteresis()
+    run_sweep([_m()], h, **KW)          # pass (streak 1)
+    run_sweep([], h, **KW)              # omission resets the streak
+    assert run_sweep([_m()], h, **KW) == set()  # 1 pass again: NOT in yet
+    assert run_sweep([_m()], h, **KW) == {"okx:BTC/USD:USD-310404"}
+
+
+def test_whitelisted_key_survives_omission():
+    h = Hysteresis()
+    kw = dict(KW, whitelist_keys={"okx:BTC/USD:USD-310404"})
+    assert run_sweep([], h, **kw) == {"okx:BTC/USD:USD-310404"}

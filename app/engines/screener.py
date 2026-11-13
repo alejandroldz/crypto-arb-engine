@@ -143,7 +143,9 @@ def run_sweep(
 ) -> set[str]:
     """One sweep over all candidates; returns the new eligible perp keys."""
     eligible: set[str] = set()
+    seen: set[str] = set()
     for m in metrics:
+        seen.add(m.key)
         if m.key in blacklist_keys:
             continue
         passed = passes_cut(
@@ -156,6 +158,21 @@ def run_sweep(
         if hyst.update(m.key, passed) or m.key in whitelist_keys:
             if m.base in spot_bases:
                 eligible.add(m.key)
+    # audit #2: an instrument MISSING from the response (connector volume
+    # pre-filter, failed download) is ONE fail event for the hysteresis -
+    # it takes 3 consecutive omissions to drop, never a single sweep. And a
+    # whitelisted (user-configured) key survives omission.
+    for key in whitelist_keys - blacklist_keys:
+        if key not in seen:
+            hyst.seed(key)
+    for key, entry in hyst.to_dict().items():
+        if key in seen or key in blacklist_keys:
+            continue
+        still_in = hyst.update(key, False)
+        if still_in or key in whitelist_keys:
+            base = key.split(":", 1)[1].split("/")[0]
+            if base in spot_bases:
+                eligible.add(key)
     return eligible
 
 
