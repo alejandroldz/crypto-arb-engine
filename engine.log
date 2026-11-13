@@ -556,3 +556,13 @@ client_session: <aiohttp.client.ClientSession object at 0x7f27f07aff50>
 2026-11-13 19:16:50,231 main WARNING funding source mismatch okx:ETH/USD:USD-310404: screener mean 0.00009378920274981301 vs polled mean 0.00002054462292053105263157894737 - entries quarantined
 2026-11-13 19:16:50,290 main WARNING funding source mismatch okx:SOL/USD:USD-310404: screener mean 0.000089010610287757 vs polled mean 0.000009666872551408947368421052632 - entries quarantined
 2026-11-13 19:16:52,423 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000002879983495358392 vs polled mean -0.000006076747847183221052631578947 - entries quarantined
+2026-11-13 19:17:27,146 main WARNING kraken spot fees NOT auto-detectable (falta kraken_spot_api_key read-only): usando fallback config 80 bps
+2026-11-13 19:17:27,349 app.engines.fee_oracle INFO fees okx: maker 2.0000 bps, taker 5.0000 bps (api)
+2026-11-13 19:17:27,349 app.engines.fee_oracle INFO fees kraken: config fallback (sin fetcher ni cache)
+2026-11-13 19:17:27,751 app.engines.fee_oracle INFO fees krakenfutures: maker 2.00 bps, taker 5.00 bps (api)
+2026-11-13 19:17:28,469 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 19:17:28,929 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 19:18:28,780 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 19:18:29,351 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 19:19:29,172 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 19:19:29,951 main INFO real account health okx: equity 0 mmr 0
