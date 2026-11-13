@@ -575,3 +575,39 @@ client_session: <aiohttp.client.ClientSession object at 0x7f27f07aff50>
 2026-11-13 19:43:31,530 main INFO real account health krakenfutures: equity 0 mmr 0
 2026-11-13 19:43:32,257 main INFO real account health okx: equity 0 mmr 0
 2026-11-13 20:14:00,178 ingestion WARNING book feed krakenfutures ETH/USD:USD: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-13 20:14:03,239 ingestion WARNING book feed kraken SOL/USD: RequestTimeout: Connection to wss://ws.kraken.com/v2 timed out due to a ping-pong keepalive missing on time
+2026-11-13 20:14:03,239 ingestion WARNING book feed kraken ETH/USD: RequestTimeout: Connection to wss://ws.kraken.com/v2 timed out due to a ping-pong keepalive missing on time
+2026-11-13 20:14:05,481 ingestion WARNING book feed kraken BTC/USD: RequestTimeout: Connection to wss://ws.kraken.com/v2 timed out due to a ping-pong keepalive missing on time
+2026-11-13 20:14:05,486 ingestion WARNING book feed okx SOL/USD:USD-310404: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-13 20:14:05,487 ingestion WARNING book feed okx BTC/USD:USD-310404: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-13 20:14:05,487 ingestion WARNING book feed okx ETH/USD:USD-310404: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-13 20:14:17,803 ingestion WARNING book feed krakenfutures BTC/USD:USD: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-13 20:14:58,727 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 20:14:59,413 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 20:15:01,334 app.database.duckdb_store ERROR book flush failed; batch kept for retry
+Traceback (most recent call last):
+  File "/home/sandbox/crypto-arb-engine/app/database/duckdb_store.py", line 70, in flush
+    self._conn.executemany(
+_duckdb.ResourceInUseException: Resource In Use Error: connection is busy with another call; it refuses instead of waiting, so use a separate connection from cursor()
+2026-11-13 20:15:01,898 main WARNING funding persist dropped okx:ETH/USD:USD-310404: Resource In Use Error: connection is busy with another call; it refuses instead of waiting, so use a separate connection from cursor()
+2026-11-13 20:15:01,904 main ERROR carry candidate failed: Resource In Use Error: connection is busy with another call; it refuses instead of waiting, so use a separate connection from cursor()
+Traceback (most recent call last):
+  File "/home/sandbox/crypto-arb-engine/app/main.py", line 724, in run
+    await handle_funding_candidate(carry_ctx, rate, now_ns)
+  File "/home/sandbox/crypto-arb-engine/app/engines/candidates.py", line 112, in handle_funding_candidate
+    history = await asyncio.to_thread(
+              ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/sandbox/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/asyncio/threads.py", line 25, in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/sandbox/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/concurrent/futures/thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/sandbox/crypto-arb-engine/app/database/duckdb_store.py", line 163, in funding_history
+    rows = self._conn.execute(
+           ^^^^^^^^^^^^^^^^^^^
+_duckdb.ResourceInUseException: Resource In Use Error: connection is busy with another call; it refuses instead of waiting, so use a separate connection from cursor()
+2026-11-13 20:15:58,957 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 20:15:59,722 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 20:16:58,947 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 20:16:59,693 main INFO real account health okx: equity 0 mmr 0
