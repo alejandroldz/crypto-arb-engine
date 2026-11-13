@@ -6,3 +6,4 @@ __pycache__/
 *.db
 *.duckdb
 *.duckdb.wal
+fees_state.json
