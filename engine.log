@@ -503,3 +503,29 @@ aiohttp.client_exceptions.ClientConnectionResetError: Cannot write to closing tr
 2026-11-13 19:12:31,080 ingestion WARNING book feed krakenfutures ETH/USD:USD: NetworkError: Connection closed by remote server, closing code 1006
 2026-11-13 19:12:31,080 ingestion WARNING book feed krakenfutures BTC/USD:USD: NetworkError: Connection closed by remote server, closing code 1006
 2026-11-13 19:12:31,080 ingestion WARNING book feed kraken ETH/USD: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-13 19:12:59,523 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 19:13:00,242 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 19:13:10,192 ccxt.base.exchange WARNING kraken requires to release all resources with an explicit call to the .close() coroutine. If you are using the exchange instance with async coroutines, add `await exchange.close()` to your code into a place when you're done with the exchange and don't need the exchange instance anymore (at the end of your async coroutine).
+2026-11-13 19:13:10,192 ccxt.base.exchange WARNING kraken requires to release all resources with an explicit call to the .close() coroutine. If you are using the exchange instance with async coroutines, add `await exchange.close()` to your code into a place when you're done with the exchange and don't need the exchange instance anymore (at the end of your async coroutine).
+2026-11-13 19:13:10,192 ccxt.base.exchange WARNING okx requires to release all resources with an explicit call to the .close() coroutine. If you are using the exchange instance with async coroutines, add `await exchange.close()` to your code into a place when you're done with the exchange and don't need the exchange instance anymore (at the end of your async coroutine).
+2026-11-13 19:13:10,192 ccxt.base.exchange WARNING okx requires to release all resources with an explicit call to the .close() coroutine. If you are using the exchange instance with async coroutines, add `await exchange.close()` to your code into a place when you're done with the exchange and don't need the exchange instance anymore (at the end of your async coroutine).
+2026-11-13 19:13:10,192 ccxt.base.exchange WARNING okx requires to release all resources with an explicit call to the .close() coroutine. If you are using the exchange instance with async coroutines, add `await exchange.close()` to your code into a place when you're done with the exchange and don't need the exchange instance anymore (at the end of your async coroutine).
+2026-11-13 19:13:10,192 ccxt.base.exchange WARNING krakenfutures requires to release all resources with an explicit call to the .close() coroutine. If you are using the exchange instance with async coroutines, add `await exchange.close()` to your code into a place when you're done with the exchange and don't need the exchange instance anymore (at the end of your async coroutine).
+2026-11-13 19:13:10,192 ccxt.base.exchange WARNING kraken requires to release all resources with an explicit call to the .close() coroutine. If you are using the exchange instance with async coroutines, add `await exchange.close()` to your code into a place when you're done with the exchange and don't need the exchange instance anymore (at the end of your async coroutine).
+2026-11-13 19:13:10,192 asyncio ERROR Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x7f27f30edee0>
+2026-11-13 19:13:10,192 asyncio ERROR Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x7f27f30ee1b0>
+2026-11-13 19:13:10,193 asyncio ERROR Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x7f27f0786a20>
+2026-11-13 19:13:10,193 asyncio ERROR Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x7f27f0791040>
+2026-11-13 19:13:10,193 asyncio ERROR Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x7f27f0791760>
+2026-11-13 19:13:10,193 asyncio ERROR Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x7f27f07b51f0>
+2026-11-13 19:13:10,193 asyncio ERROR Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x7f27f30ec6b0>
+2026-11-13 19:13:10,194 ccxt.base.exchange WARNING krakenfutures requires to release all resources with an explicit call to the .close() coroutine. If you are using the exchange instance with async coroutines, add `await exchange.close()` to your code into a place when you're done with the exchange and don't need the exchange instance anymore (at the end of your async coroutine).
+2026-11-13 19:13:10,194 asyncio ERROR Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x7f27f07aff50>
