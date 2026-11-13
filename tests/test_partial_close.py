@@ -93,10 +93,12 @@ async def test_entry_fees_included_in_realized_pnl(tmp_path):
     # entry: spot taker 80bps on ~1000 + perp taker 5bps on ~1000 = 8.5
     # exit:  same = 8.5 -> total -17 (before the fix: -8.5)
     q = fill.qty_base
-    expected = -(
+    fees = (
         D("0.008") * q * D("100.0") + D("0.0005") * q * D("100.1")
         + D("0.008") * q * D("99.9") + D("0.0005") * q * D("100.2")
     )
+    spread = q * (D("99.9") - D("100.0")) + q * (D("100.1") - D("100.2"))
+    expected = -fees + spread
     assert abs(pnl - expected) < D("0.01")
     from sqlalchemy import select
 
