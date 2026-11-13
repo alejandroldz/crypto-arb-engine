@@ -78,6 +78,7 @@ class L2OrderBook(BaseModel):
             raise ValueError("asks must be sorted lowest price first")
         return v
 
+
     @property
     def best_bid(self) -> OrderBookLevel:
         return self.bids[0]

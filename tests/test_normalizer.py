@@ -68,3 +68,22 @@ def test_funding_interval_carried_from_payload():
     assert r8.interval_hours == 8
     r_default = normalize_funding("okx", "BTC/USD:USD-310404", {"fundingRate": "0.0001"})
     assert r_default.interval_hours == 8
+
+
+def test_crossed_book_rejected_at_normalization():
+    """F07: crossed/locked books never reach the engines."""
+    import pytest
+
+    from app.connectors.ccxt_manager import normalize_book
+
+    with pytest.raises(ValueError, match="crossed"):
+        normalize_book("kraken", "BTC/USD",
+                       {"bids": [[101, 1]], "asks": [[100, 1]]})
+    # locked (bid == ask) is rejected too
+    with pytest.raises(ValueError, match="crossed"):
+        normalize_book("kraken", "BTC/USD",
+                       {"bids": [[100, 1]], "asks": [[100, 1]]})
+    # sane book passes
+    b = normalize_book("kraken", "BTC/USD", {"bids": [[99, 1]], "asks": [[100, 1]]})
+    from app.core.decimals import D as _D
+    assert b.best_bid.price == _D("99")

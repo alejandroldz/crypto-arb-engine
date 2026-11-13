@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 
 import ccxt.pro as ccxtpro
 
+from app.core.decimals import D
 from app.connectors.normalizer import FundingRate, L2OrderBook, OrderBookLevel
 from app.core.events import EventBus
 
@@ -78,16 +79,25 @@ def normalize_book(
 ) -> L2OrderBook:
     """ccxt order book payload -> canonical L2OrderBook."""
     ts_ms = raw.get("timestamp")
+    bids_raw = raw["bids"]
+    asks_raw = raw["asks"]
+    # F07: a crossed/locked book makes the maker branch fill ANY size at
+    # fantasy prices (price "touched" == full fill). Reject the snapshot;
+    # the feed retries with the next one.
+    if bids_raw and asks_raw and D(str(bids_raw[0][0])) >= D(str(asks_raw[0][0])):
+        raise ValueError(
+            f"crossed book rejected: bid {bids_raw[0][0]} >= ask {asks_raw[0][0]}"
+        )
     return L2OrderBook(
         exchange=exchange_id,
         symbol=symbol,
         bids=tuple(
             OrderBookLevel(price=str(p), qty=_contract_base_qty(q, p, market))
-            for p, q, *_ in raw["bids"]
+            for p, q, *_ in bids_raw
         ),
         asks=tuple(
             OrderBookLevel(price=str(p), qty=_contract_base_qty(q, p, market))
-            for p, q, *_ in raw["asks"]
+            for p, q, *_ in asks_raw
         ),
         exchange_ts=(
             datetime.fromtimestamp(ts_ms / 1000, tz=timezone.utc) if ts_ms else None
