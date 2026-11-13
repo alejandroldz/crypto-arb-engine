@@ -150,8 +150,12 @@ async def run() -> None:
         level=logging.INFO,
         format="%(asctime)s %(name)s %(levelname)s %(message)s",
         # op.#18: bounded log growth (3 x 5MB), no silent disk fill
-        handlers=[RotatingFileHandler(
-            "engine.log", maxBytes=5_000_000, backupCount=3)],
+        handlers=[
+            # stdout para `docker logs` en el servidor; fichero rotado para
+            # historia acotada y para el HEALTHCHECK del contenedor
+            logging.StreamHandler(),
+            RotatingFileHandler("engine.log", maxBytes=5_000_000, backupCount=3),
+        ],
     )
     settings = get_settings()
     console = Console()
