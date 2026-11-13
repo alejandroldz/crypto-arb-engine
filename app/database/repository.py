@@ -284,7 +284,11 @@ class Repository:
                 .order_by(TaxAuditLog.trade_id)
             )
             rows = list(result.scalars())
-        with open(path, "w", newline="", encoding="utf-8") as fh:
+        # caos menor: write to a tmp file and replace - a crash mid-export
+        # must not leave a truncated tax report looking complete
+        path = Path(path)
+        tmp = path.with_suffix(path.suffix + ".tmp")
+        with open(tmp, "w", newline="", encoding="utf-8") as fh:
             writer = csv.writer(fh)
             writer.writerow(
                 [
