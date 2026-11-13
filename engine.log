@@ -810,3 +810,45 @@ _duckdb.ResourceInUseException: Resource In Use Error: connection is busy with a
 2026-11-13 22:29:07,135 main INFO real account health krakenfutures: equity 0 mmr 0
 2026-11-13 22:29:07,756 main INFO real account health okx: equity 0 mmr 0
 2026-11-13 22:29:19,692 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007131817901248971 vs polled mean -0.000004059368304314611764705882353 - entries quarantined
+2026-11-13 22:29:30,730 main INFO seeded 56 funding samples from funding_log.csv
+2026-11-13 22:29:30,730 main INFO seeded 56 funding samples from funding_log.csv
+2026-11-13 22:29:32,284 main WARNING kraken spot fees NOT auto-detectable (falta kraken_spot_api_key read-only): usando fallback config 80 bps
+2026-11-13 22:29:32,284 main WARNING kraken spot fees NOT auto-detectable (falta kraken_spot_api_key read-only): usando fallback config 80 bps
+2026-11-13 22:29:32,712 app.engines.fee_oracle INFO fees krakenfutures: maker 2.00 bps, taker 5.00 bps (api)
+2026-11-13 22:29:32,712 app.engines.fee_oracle INFO fees krakenfutures: maker 2.00 bps, taker 5.00 bps (api)
+2026-11-13 22:29:32,712 app.engines.fee_oracle INFO fees kraken: config fallback (sin fetcher ni cache)
+2026-11-13 22:29:32,712 app.engines.fee_oracle INFO fees kraken: config fallback (sin fetcher ni cache)
+2026-11-13 22:29:32,937 app.engines.fee_oracle INFO fees okx: maker 2.0000 bps, taker 5.0000 bps (api)
+2026-11-13 22:29:32,937 app.engines.fee_oracle INFO fees okx: maker 2.0000 bps, taker 5.0000 bps (api)
+2026-11-13 22:29:33,739 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 22:29:33,739 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 22:29:34,283 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 22:29:34,283 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 22:29:50,183 main INFO seeded 5 funding samples from funding_log.csv
+2026-11-13 22:29:50,183 main INFO seeded 5 funding samples from funding_log.csv
+2026-11-13 22:29:51,478 main WARNING kraken spot fees NOT auto-detectable (falta kraken_spot_api_key read-only): usando fallback config 80 bps
+2026-11-13 22:29:51,478 main WARNING kraken spot fees NOT auto-detectable (falta kraken_spot_api_key read-only): usando fallback config 80 bps
+2026-11-13 22:29:51,478 app.engines.fee_oracle INFO fees kraken: config fallback (sin fetcher ni cache)
+2026-11-13 22:29:51,478 app.engines.fee_oracle INFO fees kraken: config fallback (sin fetcher ni cache)
+2026-11-13 22:29:52,278 app.engines.fee_oracle INFO fees krakenfutures: maker 2.00 bps, taker 5.00 bps (api)
+2026-11-13 22:29:52,278 app.engines.fee_oracle INFO fees krakenfutures: maker 2.00 bps, taker 5.00 bps (api)
+2026-11-13 22:29:52,484 app.engines.fee_oracle INFO fees okx: maker 2.0000 bps, taker 5.0000 bps (api)
+2026-11-13 22:29:52,484 app.engines.fee_oracle INFO fees okx: maker 2.0000 bps, taker 5.0000 bps (api)
+2026-11-13 22:29:53,198 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 22:29:53,198 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 22:29:53,674 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 22:29:53,674 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 22:30:53,952 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 22:30:53,952 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 22:30:54,531 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 22:30:54,531 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 22:31:25,878 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007119110904721193 vs polled mean -0.000003784890580157978260869565217 - entries quarantined
+2026-11-13 22:31:25,878 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007119110904721193 vs polled mean -0.000003784890580157978260869565217 - entries quarantined
+2026-11-13 22:31:54,447 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 22:31:54,447 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 22:31:55,140 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 22:31:55,140 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 22:31:56,910 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007119110904721193 vs polled mean -0.000003749058383995537634408602151 - entries quarantined
+2026-11-13 22:31:56,910 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007119110904721193 vs polled mean -0.000003749058383995537634408602151 - entries quarantined
+2026-11-13 22:32:28,082 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007119110904721193 vs polled mean -0.000003713989945830234042553191489 - entries quarantined
+2026-11-13 22:32:28,082 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007119110904721193 vs polled mean -0.000003713989945830234042553191489 - entries quarantined
