@@ -24,7 +24,7 @@ def _bounded_decimal(raw: str, name: str, lo: Decimal, hi: Decimal) -> Decimal:
     """
     try:
         d = D(raw)
-    except (ArithmeticError, TypeError) as exc:
+    except (ArithmeticError, TypeError, ValueError) as exc:
         raise ValueError(f"{name}: invalid decimal {raw!r}") from exc
     if not d.is_finite() or d < lo or d > hi:
         raise ValueError(f"{name}: value {d} outside [{lo}, {hi}]")
@@ -229,7 +229,7 @@ class Settings(BaseSettings):
         # surfaced it raw without naming the setting. Wrap it.
         try:
             return D(v)  # rejects floats with a clear error
-        except (ArithmeticError, TypeError) as exc:
+        except (ArithmeticError, TypeError, ValueError) as exc:
             raise ValueError(f"invalid decimal value {v!r}") from exc
 
     @field_validator("max_leverage")
