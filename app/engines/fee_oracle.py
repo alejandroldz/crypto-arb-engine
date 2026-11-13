@@ -179,9 +179,11 @@ class FeeOracle:
                 prev_ok = False
                 if prev is not None:
                     try:
+                        if not isinstance(prev, dict):
+                            raise TypeError("cache entry not a dict")
                         pq = FeeQuote(D(prev["maker_bps"]), D(prev["taker_bps"]), "cache")
                         prev_ok = fee_plausible(pq.maker_bps, pq.taker_bps)
-                    except (ValueError, KeyError, ArithmeticError):
+                    except (ValueError, KeyError, ArithmeticError, TypeError):
                         prev_ok = False
                 if prev_ok:
                     out[venue] = pq
@@ -224,9 +226,11 @@ class FeeOracle:
             except Exception as exc:  # network/permission: degrade, don't die
                 prev = cached.get(venue)
                 try:
+                    if prev is not None and not isinstance(prev, dict):
+                        raise TypeError("cache entry not a dict")
                     cq = FeeQuote(D(prev["maker_bps"]), D(prev["taker_bps"]), "cache") if prev else None
                     cache_ok = cq is not None and fee_plausible(cq.maker_bps, cq.taker_bps)
-                except (ValueError, KeyError, ArithmeticError):
+                except (ValueError, KeyError, ArithmeticError, TypeError):
                     cache_ok = False
                 if cache_ok:
                     quote = cq

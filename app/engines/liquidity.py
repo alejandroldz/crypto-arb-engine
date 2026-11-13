@@ -89,8 +89,12 @@ def vwap_for_quote(
             remaining -= take_quote
             used += 1
             worst = lvl.price
-    if filled_quote > quote_size:
-        filled_quote = quote_size  # defensive clamp: never over-fill
+    if quote_size > ZERO and filled_quote > quote_size:
+        # defensive clamp: never over-fill. Keep base consistent (F41/F23
+        # nit): the excess is valued at the worst level's price.
+        excess = filled_quote - quote_size
+        base -= div(excess, worst)
+        filled_quote = quote_size
 
     # fuzz F5: a non-positive request "filled" instantly with vwap=None and
     # executable=True, violating the contract and crashing callers' asserts
@@ -145,8 +149,10 @@ def vwap_for_base(
             remaining -= take_base
             used += 1
             worst = lvl.price
-    if filled_base > base_qty:
-        filled_base = base_qty  # defensive clamp: never over-fill
+    if base_qty > ZERO and filled_base > base_qty:
+        excess = filled_base - base_qty
+        quote -= mul(excess, worst)
+        filled_base = base_qty
 
     # fuzz F5: same contract for base-sized requests
     fully = remaining <= ZERO and D(base_qty) > ZERO

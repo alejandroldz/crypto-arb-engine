@@ -90,3 +90,54 @@ def test_h10_fee_state_save_is_atomic(tmp_path):
     oracle._save_state({"venues": {}, "review_required": []})
     assert json.loads(path.read_text()) == {"venues": {}, "review_required": []}
     assert not (tmp_path / "fees.json.tmp").exists()
+
+
+def test_f40_fee_cache_entry_wrong_type_ignored(tmp_path):
+    import asyncio
+
+    from app.core.config import Settings
+    from app.engines.fee_oracle import FeeOracle
+    path = tmp_path / "fees.json"
+    path.write_text('{"venues": {"okx": "nulo"}, "review_required": []}')
+    settings = Settings(
+        spot_exchanges="kraken", perp_exchanges="okx",
+        default_taker_fee_bps=Decimal("5"),
+    )
+    oracle = FeeOracle(settings, state_path=str(path))
+
+    async def dead():
+        raise ConnectionError("down")
+
+    out = asyncio.run(oracle.refresh({"okx": dead}))
+    assert out["okx"].source == "config"  # falls back, never crashes
+
+
+def test_f41_vwap_negative_size_zero_fill():
+    from app.connectors.normalizer import L2OrderBook, OrderBookLevel
+    from app.engines.liquidity import vwap_for_quote
+    book = L2OrderBook(
+        exchange="t", symbol="X/USD",
+        bids=(OrderBookLevel(price="100", qty="10"),),
+        asks=(OrderBookLevel(price="101", qty="10"),),
+        local_ts_ns=1,
+    )
+    r = vwap_for_quote(book, "sell", "-5", "0")
+    assert r.filled_quote == 0 and not r.fully_filled and not r.executable
+
+
+def test_f42_validator_fails_loud_on_nan():
+    import pytest
+
+    from app.engines.validator import funding_breakeven_intervals, funding_net_pnl
+    with pytest.raises(ValueError, match="finite"):
+        funding_net_pnl(
+            notional=Decimal("1000"), funding_rate=Decimal("NaN"), intervals=5,
+            spot_taker_fee_bps=Decimal("5"), perp_taker_fee_bps=Decimal("5"),
+            slippage_buffer_bps=Decimal("5"),
+        )
+    with pytest.raises(ValueError, match="finite"):
+        funding_breakeven_intervals(
+            notional=Decimal("1000"), funding_rate=Decimal("Infinity"),
+            spot_taker_fee_bps=Decimal("5"), perp_taker_fee_bps=Decimal("5"),
+            slippage_buffer_bps=Decimal("5"),
+        )

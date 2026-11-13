@@ -4,11 +4,14 @@ set -e
 cd "$(dirname "$0")/.."
 U=$(cat ~/.vault/github-pat-crypto-arb-engine-824827/username)
 T=$(cat ~/.vault/github-pat-crypto-arb-engine-824827/password)
-URL="https://$U:$T@github.com/alejandroldz/crypto-arb-engine.git"
+# OPS: never put the PAT in the git URL (visible in `ps` and in stderr on
+# failure). One-shot credential header; push stderr goes nowhere public.
+AUTH="http.extraHeader=Authorization: Basic $(printf '%s:%s' "$U" "$T" | base64 -w0)"
+URL="https://github.com/alejandroldz/crypto-arb-engine.git"
 WT=/tmp/soak-data-wt
 rm -rf "$WT"
 git worktree prune
-git fetch -q "$URL" soak-data 2>/dev/null && HAS=1 || HAS=0
+git -c "$AUTH" fetch -q "$URL" soak-data 2>/dev/null && HAS=1 || HAS=0
 if [ "$HAS" = 1 ]; then
   git worktree add -q "$WT" soak-data
 else
@@ -33,7 +36,7 @@ fi
 cd "$WT"
 git add -A
 git commit -q -m "soak snapshot $(date -u +%Y-%m-%dT%H:%M:%SZ)" || true
-git push -q "$URL" soak-data:soak-data
+git -c "$AUTH" push -q "$URL" soak-data:soak-data 2>/dev/null || echo "push failed (stderr suppressed: may contain credentials)"
 cd - >/dev/null
 git worktree remove --force "$WT"
 echo "synced $(date -u +%H:%M:%S)"

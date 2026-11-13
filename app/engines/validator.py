@@ -63,8 +63,15 @@ def funding_roundtrip_costs(
 
 
 def funding_payout_per_interval(notional: Decimal, funding_rate: Decimal) -> Decimal:
-    """Funding received per interval by the short leg when rate > 0."""
-    return mul(D(notional), D(funding_rate))
+    """Funding received per interval by the short leg when rate > 0.
+
+    fuzz F42: fail loud on non-finite inputs - NaN would poison the whole
+    approval chain silently (InvalidOperation far from the source)."""
+    rate = D(funding_rate)
+    n = D(notional)
+    if not rate.is_finite() or not n.is_finite():
+        raise ValueError(f"non-finite payout inputs: rate={rate!r} notional={n!r}")
+    return mul(n, rate)
 
 
 def funding_net_pnl(
