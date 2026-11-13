@@ -21,6 +21,10 @@ dev = [
     "pytest-asyncio>=0.24.0",
     "hypothesis>=6.112.0",
 ]
+front = [
+    "streamlit>=1.40",
+    "pandas>=2.2",
+]
 
 [project.scripts]
 crypto-arb = "app.main:entrypoint"
