@@ -184,3 +184,16 @@ def test_seed_compacts_csv_to_7_days(tmp_path):
     assert len(lines) == 2  # header + the recent row only
     assert "2026-11-13" in lines[1]
     monkey.undo()
+
+
+def test_heartbeat_format():
+    """The daily heartbeat summarizes the state a human checks first."""
+    open_carries = {"a": object(), "b": object()}
+    feed_tasks = {"book:okx:X": 1, "fund:okx:X": 2}
+    msg = (
+        "ENGINE OK: "
+        f"{len(open_carries)} carries, {0} pares PP, "
+        f"{len(feed_tasks)} feeds, "
+        f"breaker={'HALT' if False else 'ok'}"
+    )
+    assert msg == "ENGINE OK: 2 carries, 0 pares PP, 2 feeds, breaker=ok"

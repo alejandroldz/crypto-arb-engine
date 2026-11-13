@@ -727,6 +727,25 @@ async def run() -> None:
     # op.#13: feed supervision + freshness watchdog
     tasks.append(asyncio.create_task(feed_watchdog()))
 
+    async def heartbeat_loop() -> None:
+        """Daily proof-of-life: a wedged engine (no exceptions, no alerts)
+        is otherwise indistinguishable from a healthy one."""
+        await asyncio.sleep(24 * 3600)  # first beat 24h after boot
+        while not stop.is_set():
+            pp_open = len(pp_ctx.open) if pp_ctx is not None else 0
+            await notifier.send(
+                "ENGINE OK: "
+                f"{len(open_carries)} carries, {pp_open} pares PP, "
+                f"{len(feed_tasks)} feeds, "
+                f"breaker={'HALT' if breaker.halted else 'ok'}"
+            )
+            try:
+                await asyncio.wait_for(stop.wait(), timeout=24 * 3600)
+            except asyncio.TimeoutError:
+                pass
+
+    tasks.append(asyncio.create_task(heartbeat_loop()))
+
     async def close_carry(key: str, carry: OpenCarry, reason: str) -> None:
         nonlocal realized_pnl
 
