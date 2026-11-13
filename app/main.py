@@ -23,7 +23,7 @@ import sys
 import time
 from collections import deque
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from rich.console import Console
@@ -96,6 +96,8 @@ def seed_funding_history(ticks):
         k: to_utc(str(v)) for k, v in ticks.funding_max_ts_by_series().items() if v
     }
     seeded = failed = 0
+    keep: list[list[str]] = []
+    cutoff = datetime.now(timezone.utc) - timedelta(days=7)
     try:
         fh = open(FUNDING_LOG_CSV, newline="", encoding="utf-8")
     except FileNotFoundError:
@@ -112,6 +114,8 @@ def seed_funding_history(ticks):
             except ValueError:
                 failed += 1
                 continue
+            if ts >= cutoff:
+                keep.append(row[:5])
             if ts <= watermarks.get((exchange, symbol), epoch):
                 continue  # already in DuckDB (per-series watermark)
             if ticks.insert_funding_raw(exchange, symbol, ts_iso, rate, predicted or None):
@@ -120,6 +124,26 @@ def seed_funding_history(ticks):
                 failed += 1
     if failed:
         logger.warning("funding seed: %d rows failed to insert", failed)
+    # caos: the CSV grew unbounded (~300 KB/day). DuckDB is the durable
+    # store; the CSV only needs recent rows as a restart seed. Rewrite
+    # atomically keeping the last 7 days.
+    import os
+    import tempfile
+
+    fd, tmp = tempfile.mkstemp(
+        dir=str(Path(FUNDING_LOG_CSV).parent or "."), suffix=".csv.tmp")
+    try:
+        with os.fdopen(fd, "w", newline="", encoding="utf-8") as out:
+            w = csv.writer(out)
+            w.writerow(["exchange", "symbol", "ts", "rate", "predicted_rate"])
+            w.writerows(keep)
+        os.replace(tmp, FUNDING_LOG_CSV)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
     return seeded
 
 

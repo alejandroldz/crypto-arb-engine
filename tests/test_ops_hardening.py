@@ -163,3 +163,24 @@ async def test_derivative_feed_without_markets_fails_closed(monkeypatch):
     stop.set()
     await asyncio.wait_for(task, timeout=5)
     assert q.empty()  # nothing published without contract metadata
+
+
+def test_seed_compacts_csv_to_7_days(tmp_path):
+    """caos: funding_log.csv grew unbounded; seeding rewrites it keeping
+    only the last 7 days (DuckDB is the durable store)."""
+    import app.main as m
+
+    csv_path = tmp_path / "funding_log.csv"
+    csv_path.write_text(
+        "exchange,symbol,ts,rate,predicted\n"
+        "okx,BTC/USD:USD,2020-01-01T00:00:00+00:00,0.0005,\n"
+        "okx,BTC/USD:USD,2026-11-13T16:00:00+00:00,0.0006,\n"
+    )
+    monkey = pytest.MonkeyPatch()
+    monkey.setattr(m, "FUNDING_LOG_CSV", str(csv_path))
+    store = TickStore(str(tmp_path / "t.duckdb"))
+    m.seed_funding_history(store)
+    lines = csv_path.read_text().strip().splitlines()
+    assert len(lines) == 2  # header + the recent row only
+    assert "2026-11-13" in lines[1]
+    monkey.undo()
