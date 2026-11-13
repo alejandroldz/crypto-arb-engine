@@ -661,3 +661,21 @@ _duckdb.ResourceInUseException: Resource In Use Error: connection is busy with a
 2026-11-13 21:22:01,146 main INFO real account health okx: equity 0 mmr 0
 2026-11-13 21:23:00,492 main INFO real account health krakenfutures: equity 0 mmr 0
 2026-11-13 21:23:01,189 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 21:29:28,716 ingestion WARNING book feed krakenfutures ETH/USD:USD: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-13 21:29:28,716 ingestion WARNING book feed kraken BTC/USD: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-13 21:29:28,716 ingestion WARNING book feed kraken ETH/USD: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-13 21:29:28,716 ingestion WARNING book feed krakenfutures BTC/USD:USD: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-13 21:29:29,312 ingestion WARNING book feed kraken SOL/USD: RequestTimeout: Connection to wss://ws.kraken.com/v2 timed out due to a ping-pong keepalive missing on time
+2026-11-13 21:29:41,079 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 21:29:41,736 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 21:29:44,794 ingestion WARNING book feed okx ETH/USD:USD-310404: RequestTimeout: Connection to wss://ws.okx.com:443/ws/v5/public timed out due to a ping-pong keepalive missing on time
+2026-11-13 21:29:44,794 ingestion WARNING book feed okx BTC/USD:USD-310404: RequestTimeout: Connection to wss://ws.okx.com:443/ws/v5/public timed out due to a ping-pong keepalive missing on time
+2026-11-13 21:29:44,794 ingestion WARNING book feed okx SOL/USD:USD-310404: RequestTimeout: Connection to wss://ws.okx.com:443/ws/v5/public timed out due to a ping-pong keepalive missing on time
+2026-11-13 21:30:41,341 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 21:30:41,987 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 21:30:55,031 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000002879983495358392 vs polled mean -0.000007804200509902733333333333333 - entries quarantined
+2026-11-13 21:31:25,844 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000002879983495358392 vs polled mean -0.000007819485432768838709677419355 - entries quarantined
+2026-11-13 21:46:14,425 ingestion WARNING book feed krakenfutures BTC/USD:USD: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-13 21:46:14,426 ingestion WARNING book feed kraken ETH/USD: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-13 21:46:14,426 ingestion WARNING book feed krakenfutures ETH/USD:USD: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-13 21:46:14,535 ingestion WARNING book feed kraken BTC/USD: RequestTimeout: Connection to wss://ws.kraken.com/v2 timed out due to a ping-pong keepalive missing on time
