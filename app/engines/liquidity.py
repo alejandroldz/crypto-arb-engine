@@ -74,15 +74,23 @@ def vwap_for_quote(
     used = 0
     best = levels[0].price
     worst = best
-    for lvl in levels:
-        if remaining <= ZERO:
-            break
-        take_quote = lvl.quote_volume if lvl.quote_volume <= remaining else remaining
-        filled_quote += take_quote
-        base += div(take_quote, lvl.price)
-        remaining -= take_quote
-        used += 1
-        worst = lvl.price
+    # fuzz F23: accumulate with surplus precision (like mul/div) - at 28
+    # digits a pathological level set could over-fill by 1 ulp, violating
+    # "never fill more than requested"
+    from decimal import localcontext
+    with localcontext() as ctx:
+        ctx.prec = MATH_PRECISION + 10
+        for lvl in levels:
+            if remaining <= ZERO:
+                break
+            take_quote = lvl.quote_volume if lvl.quote_volume <= remaining else remaining
+            filled_quote += take_quote
+            base += div(take_quote, lvl.price)
+            remaining -= take_quote
+            used += 1
+            worst = lvl.price
+    if filled_quote > quote_size:
+        filled_quote = quote_size  # defensive clamp: never over-fill
 
     # fuzz F5: a non-positive request "filled" instantly with vwap=None and
     # executable=True, violating the contract and crashing callers' asserts
@@ -125,15 +133,20 @@ def vwap_for_base(
     used = 0
     best = levels[0].price
     worst = best
-    for lvl in levels:
-        if remaining <= ZERO:
-            break
-        take_base = lvl.qty if lvl.qty <= remaining else remaining
-        filled_base += take_base
-        quote += mul(take_base, lvl.price)
-        remaining -= take_base
-        used += 1
-        worst = lvl.price
+    from decimal import localcontext
+    with localcontext() as ctx:
+        ctx.prec = MATH_PRECISION + 10
+        for lvl in levels:
+            if remaining <= ZERO:
+                break
+            take_base = lvl.qty if lvl.qty <= remaining else remaining
+            filled_base += take_base
+            quote += mul(take_base, lvl.price)
+            remaining -= take_base
+            used += 1
+            worst = lvl.price
+    if filled_base > base_qty:
+        filled_base = base_qty  # defensive clamp: never over-fill
 
     # fuzz F5: same contract for base-sized requests
     fully = remaining <= ZERO and D(base_qty) > ZERO
