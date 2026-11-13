@@ -1,13 +1,3 @@
-2026-11-13 23:01:16,048 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:16,048 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:16,057 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:16,057 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:16,066 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:16,066 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:16,126 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:16,126 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:16,140 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:16,140 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
 2026-11-13 23:01:16,154 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
 2026-11-13 23:01:16,154 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
 2026-11-13 23:01:16,170 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
@@ -1998,3 +1988,13 @@
 2026-11-13 23:19:14,337 main INFO real account health krakenfutures: equity 0 mmr 0
 2026-11-13 23:19:15,087 main INFO real account health okx: equity 0 mmr 0
 2026-11-13 23:19:15,087 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 23:19:31,838 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007091634104952674 vs polled mean -0.000002880856677320242774566473988 - entries quarantined
+2026-11-13 23:19:31,838 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007091634104952674 vs polled mean -0.000002880856677320242774566473988 - entries quarantined
+2026-11-13 23:20:03,070 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007091634104952674 vs polled mean -0.000002893036390940586206896551724 - entries quarantined
+2026-11-13 23:20:03,070 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007091634104952674 vs polled mean -0.000002893036390940586206896551724 - entries quarantined
+2026-11-13 23:20:14,528 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 23:20:14,528 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 23:20:15,219 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 23:20:15,219 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 23:20:34,029 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007091634104952674 vs polled mean -0.000002905077243958674285714285714 - entries quarantined
+2026-11-13 23:20:34,029 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007091634104952674 vs polled mean -0.000002905077243958674285714285714 - entries quarantined
