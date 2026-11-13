@@ -77,6 +77,7 @@ def _contract_base_qty(qty, price, market: dict | None) -> str:
 
 #: caos H8: cap levels per side (real L2 feeds stay far below this)
 MAX_BOOK_LEVELS = 1000
+_truncation_warned: set[str] = set()
 
 
 def _dec_or_zero(v: object) -> Decimal:
@@ -117,11 +118,16 @@ def _normalize_book(
     if len(raw["bids"]) > MAX_BOOK_LEVELS or len(raw["asks"]) > MAX_BOOK_LEVELS:
         # caos H8: a 100k-level payload stalls the feed thread and spikes
         # RSS. The top of book is what sizing uses; truncating the tail
-        # understates depth, which is the conservative direction.
-        logger.warning(
-            "book %s:%s truncated to %d levels/side (payload too deep)",
-            exchange_id, symbol, MAX_BOOK_LEVELS,
-        )
+        # understates depth, which is the conservative direction. Kraken
+        # legitimately serves >1000 levels: warn once per symbol, not per
+        # snapshot.
+        warn_key = f"{exchange_id}:{symbol}"
+        if warn_key not in _truncation_warned:
+            _truncation_warned.add(warn_key)
+            logger.warning(
+                "book %s truncated to %d levels/side (payload too deep, "
+                "further truncations silent)", warn_key, MAX_BOOK_LEVELS,
+            )
     # F07: a crossed/locked book makes the maker branch fill ANY size at
     # fantasy prices (price "touched" == full fill). Reject the snapshot;
     # the feed retries with the next one.
