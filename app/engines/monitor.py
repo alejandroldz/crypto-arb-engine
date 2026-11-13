@@ -62,8 +62,12 @@ def evaluate_carry(
             )
     else:
         mmr = None
-    # 1. liquidation proximity (RISK 5)
-    if perp_book is not None and risk.must_close(
+    # 1. liquidation proximity (RISK 5) - ISOLATED formula only applies when
+    # the position is actually isolated. With a Unified Trading Account the
+    # account-level MMR above is the real constraint; the isolated leg
+    # formula would close the carry at a tiny adverse move (+3% at 5x)
+    # while the account would have survived +130%.
+    if uta is None and perp_book is not None and risk.must_close(
         perp_book.best_ask.price, D(liquidation_buffer_pct)
     ):
         return MonitorDecision(

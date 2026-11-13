@@ -126,3 +126,21 @@ def test_flip_without_any_timestamp_unwinds():
     d = evaluate_carry(last_payment_ts=None, rate=rate(None, r="-0.01"),
                        perp_book=book("50010"), risk=RISK, **KW)
     assert d.action is MonitorAction.UNWIND
+
+
+def test_uta_monitor_ignores_isolated_liquidation_formula():
+    """Fix: with UTA the isolated-leg buffer must NOT close the carry."""
+    from app.engines.risk import UtaAccountState
+
+    uta = UtaAccountState(equity=D("10000"), utilization=D("0.9"),
+                          collateral_ratio=D("0.95"), sim_mmr_rate=D("0.04"),
+                          leverage=D("5"))
+    risk5x = CarryPositionRisk.build(D("50000"), D("5"))  # isolated liq ~+17%
+    # price +3%: isolated formula with 15% buffer would close; UTA must not
+    d = evaluate_carry(last_payment_ts=T0, rate=None, perp_book=book("51500"),
+                       risk=risk5x, uta=uta, **KW)
+    assert d.action is MonitorAction.NONE
+    # without UTA the isolated formula still applies and closes
+    d_iso = evaluate_carry(last_payment_ts=T0, rate=None, perp_book=book("51500"),
+                           risk=risk5x, **KW)
+    assert d_iso.action is MonitorAction.UNWIND
