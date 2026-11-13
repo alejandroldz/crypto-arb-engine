@@ -23,7 +23,7 @@ def test_linear_contracts_convert_with_contract_size():
 
 
 def test_inverse_contracts_convert_with_price():
-    # inverse perps: 1 contract = 10 USD (kept generic post-deribit removal)
+    # inverse perps: 1 contract = 10 USD (generic inverse-perp size)
     market = {"contract": True, "linear": False, "contractSize": 10}
     book = normalize_book("okx", "BTC/USD:USD-310404", RAW, market)
     expected = Decimal("10000") / Decimal("69000")
