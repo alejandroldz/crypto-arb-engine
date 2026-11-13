@@ -75,10 +75,30 @@ def _contract_base_qty(qty, price, market: dict | None) -> str:
     return str(q * cs / p)  # inverse: contract worth `cs` quote units
 
 
+class NormalizationError(ValueError):
+    """fuzz F22: every hostile-payload failure from normalize_* is ONE
+    domain exception. Fail-closed: the feed drops the snapshot, and any
+    future direct consumer has a single catchable error."""
+
+
 def normalize_book(
     exchange_id: str, symbol: str, raw: dict, market: dict | None = None
 ) -> L2OrderBook:
     """ccxt order book payload -> canonical L2OrderBook."""
+    try:
+        return _normalize_book(exchange_id, symbol, raw, market)
+    except NormalizationError:
+        raise
+    except Exception as exc:
+        raise NormalizationError(
+            f"book payload unusable {exchange_id}:{symbol}: "
+            f"{type(exc).__name__}: {exc}"
+        ) from exc
+
+
+def _normalize_book(
+    exchange_id: str, symbol: str, raw: dict, market: dict | None = None
+) -> L2OrderBook:
     ts_ms = raw.get("timestamp")
     bids_raw = raw["bids"]
     asks_raw = raw["asks"]
@@ -86,7 +106,7 @@ def normalize_book(
     # fantasy prices (price "touched" == full fill). Reject the snapshot;
     # the feed retries with the next one.
     if bids_raw and asks_raw and D(str(bids_raw[0][0])) >= D(str(asks_raw[0][0])):
-        raise ValueError(
+        raise NormalizationError(
             f"crossed book rejected: bid {bids_raw[0][0]} >= ask {asks_raw[0][0]}"
         )
     # F09: reject non-finite / non-representable values BEFORE they reach
@@ -146,6 +166,18 @@ def next_settlement_ts(now: datetime, interval_hours: int) -> datetime:
 
 def normalize_funding(exchange_id: str, symbol: str, raw: dict) -> FundingRate:
     """ccxt funding rate payload -> canonical FundingRate."""
+    try:
+        return _normalize_funding(exchange_id, symbol, raw)
+    except NormalizationError:
+        raise
+    except Exception as exc:
+        raise NormalizationError(
+            f"funding payload unusable {exchange_id}:{symbol}: "
+            f"{type(exc).__name__}: {exc}"
+        ) from exc
+
+
+def _normalize_funding(exchange_id: str, symbol: str, raw: dict) -> FundingRate:
     interval_hours = _parse_interval_hours(raw)
     # dif D5: prefer fundingTimestamp (the NEXT settlement, e.g. OKX
     # fundingTime). nextFundingTimestamp is the settlement AFTER that; as an

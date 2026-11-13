@@ -142,3 +142,22 @@ def test_f10b_order_book_level_bad_string_is_valueerror():
     for bad in ("..", "NaN", "abc"):
         with pytest.raises(ValueError):
             OrderBookLevel(price=bad, qty="1")
+
+
+def test_f22_normalization_error_is_single_domain_exception():
+    import pytest
+
+    from app.connectors.ccxt_manager import NormalizationError, normalize_book, normalize_funding
+    hostile_books = [
+        {},  # missing bids/asks
+        {"bids": None, "asks": []},
+        {"bids": ["x"], "asks": []},
+        {"bids": [[None, "1"]], "asks": [["2", "1"]]},
+        {"bids": [["1", "1"]], "asks": [["2", "1"]], "timestamp": "huge" * 100},
+    ]
+    for raw in hostile_books:
+        with pytest.raises(NormalizationError):
+            normalize_book("okx", "X/USD", raw)
+    for raw in ({"fundingRate": ".."}, {"fundingRate": None, "nextFundingRate": "x"}):
+        with pytest.raises(NormalizationError):
+            normalize_funding("okx", "X/USD", raw)
