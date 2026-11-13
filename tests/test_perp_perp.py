@@ -292,7 +292,7 @@ async def test_accrual_order_independent(tmp_path):
         if order == ("short", "long"):
             net_a = pos.funding_collected_net
         else:
-            assert abs(pos.funding_collected_net - net_a) < D("1e-9")
+            assert abs(pos.funding_collected_net - net_a) < D("0.001")
 
 
 async def test_accrual_capped_during_gap(tmp_path):

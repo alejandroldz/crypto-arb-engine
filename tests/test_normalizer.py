@@ -54,3 +54,17 @@ def test_local_timestamp_is_monotonic_ns():
     raw = {"bids": [["100", "1"]], "asks": [["101", "1"]]}
     book = normalize_book("t", "X/USD", raw)
     assert before <= book.local_ts_ns <= time.monotonic_ns()
+
+
+def test_funding_interval_carried_from_payload():
+    """F14: Kraken '1h' interval must not become the 8h default."""
+    from app.connectors.ccxt_manager import normalize_funding
+
+    r = normalize_funding("krakenfutures", "BTC/USD:USD",
+                          {"fundingRate": "0.0001", "interval": "1h"})
+    assert r.interval_hours == 1
+    r8 = normalize_funding("okx", "BTC/USD:USD-310404",
+                           {"fundingRate": "0.0001", "interval": "8h"})
+    assert r8.interval_hours == 8
+    r_default = normalize_funding("okx", "BTC/USD:USD-310404", {"fundingRate": "0.0001"})
+    assert r_default.interval_hours == 8

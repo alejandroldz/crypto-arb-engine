@@ -84,3 +84,45 @@ def test_no_change_is_none():
     )
     assert d.action is MonitorAction.NONE
     assert d.accrual == 0
+
+
+def test_replayed_timestamps_never_accrue_twice():
+    """F02: 09:00 -> 08:00 -> 09:00 must not pay three times."""
+    t9 = T0 + timedelta(hours=1)
+    d1 = evaluate_carry(last_payment_ts=T0, rate=rate(t9), perp_book=book("50010"),
+                        risk=RISK, **KW)
+    assert d1.action is MonitorAction.ACCRUE
+    # regressed timestamp: no accrual, flagged, watermark not rewound
+    d2 = evaluate_carry(last_payment_ts=d1.new_payment_ts, rate=rate(T0),
+                        perp_book=book("50010"), risk=RISK, **KW)
+    assert d2.action is MonitorAction.NONE
+    assert d2.accrual == D("0")
+    assert d2.new_payment_ts == t9
+    assert d2.accrual_uncertain
+    # replayed t9: no second accrual
+    d3 = evaluate_carry(last_payment_ts=d2.new_payment_ts, rate=rate(t9),
+                        perp_book=book("50010"), risk=RISK, **KW)
+    assert d3.action is MonitorAction.NONE
+    assert d3.accrual == D("0")
+
+
+def test_negative_accrual_flows_as_cost():
+    """F04: a negative payment is a signed accrual, carried into the unwind."""
+    d = evaluate_carry(last_payment_ts=T0, rate=rate(T0 + timedelta(hours=1), r="-0.01"),
+                       perp_book=book("50010"), risk=RISK, **KW)
+    assert d.action is MonitorAction.UNWIND  # negative rate is also a flip
+    assert d.accrual == D("500") * D("-0.01")  # the cost travels with the decision
+
+
+def test_flip_without_timestamp_change_unwinds():
+    """F03: rate turns negative mid-interval -> UNWIND even if ts is unchanged."""
+    d = evaluate_carry(last_payment_ts=T0, rate=rate(T0, r="-0.01"),
+                       perp_book=book("50010"), risk=RISK, **KW)
+    assert d.action is MonitorAction.UNWIND
+    assert "flip" in d.reason
+
+
+def test_flip_without_any_timestamp_unwinds():
+    d = evaluate_carry(last_payment_ts=None, rate=rate(None, r="-0.01"),
+                       perp_book=book("50010"), risk=RISK, **KW)
+    assert d.action is MonitorAction.UNWIND

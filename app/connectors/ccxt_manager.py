@@ -97,6 +97,19 @@ def normalize_book(
     )
 
 
+def _parse_interval_hours(raw: dict, default: int = 8) -> int:
+    """ccxt 'interval' (e.g. '1h', '8h') -> hours; default when absent."""
+    raw_interval = raw.get("interval")
+    if isinstance(raw_interval, str) and raw_interval.endswith("h"):
+        try:
+            h = int(raw_interval[:-1])
+            if h > 0:
+                return h
+        except ValueError:
+            pass
+    return default
+
+
 def normalize_funding(exchange_id: str, symbol: str, raw: dict) -> FundingRate:
     """ccxt funding rate payload -> canonical FundingRate."""
     next_ts = raw.get("nextFundingTimestamp")
@@ -104,6 +117,7 @@ def normalize_funding(exchange_id: str, symbol: str, raw: dict) -> FundingRate:
         exchange=exchange_id,
         symbol=symbol,
         rate=str(raw.get("fundingRate") or "0"),
+        interval_hours=_parse_interval_hours(raw),
         local_ts_ns=time.monotonic_ns(),
         next_funding_ts=(
             datetime.fromtimestamp(next_ts / 1000, tz=timezone.utc) if next_ts else None
