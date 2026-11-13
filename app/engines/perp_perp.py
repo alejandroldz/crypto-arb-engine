@@ -384,6 +384,14 @@ async def _try_open(ctx: PpContext, base: str) -> None:
             if (now_ns - ctx.books[long_key].local_ts_ns > max_age_ns
                     or now_ns - ctx.books[short_key].local_ts_ns > max_age_ns):
                 continue
+            max_spread = D(settings.max_book_spread_bps)
+            if any(
+                div(b.best_ask.price - b.best_bid.price,
+                    (b.best_bid.price + b.best_ask.price) / 2) * D("10000")
+                > max_spread
+                for b in (ctx.books[long_key], ctx.books[short_key])
+            ):
+                continue
             short_hist = await asyncio.to_thread(
                 ctx.ticks.funding_history, short_ex, short_sym)
             long_hist = await asyncio.to_thread(

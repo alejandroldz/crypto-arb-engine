@@ -222,3 +222,20 @@ async def test_blacklisted_key_never_opens():
     c = await handle_funding_candidate(ctx, _rate("krakenfutures", "BTC/USD:USD"), now)
     assert c is None
     assert ctx.paper.opened == 0
+
+
+@pytest.mark.asyncio
+async def test_huge_spread_candidate_rejected():
+    """F06: bid=1/ask=100 books are a false signal, not an opportunity."""
+    settings = Settings(
+        min_net_profit_usd=Decimal("0.01"), min_funding_history=10,
+    )
+    ctx = _ctx(settings)
+    wide = _book("kraken", "BTC/USD")
+    object.__setattr__(wide, "bids", wide.bids.__class__((type(wide.bids[0])(price="1", qty="500"),)))
+    object.__setattr__(wide, "asks", wide.asks.__class__((type(wide.asks[0])(price="100", qty="500"),)))
+    ctx.books["kraken:BTC/USD"] = wide
+    now = time.monotonic_ns()
+    c = await handle_funding_candidate(ctx, _rate("krakenfutures", "BTC/USD:USD"), now)
+    assert c is None
+    assert ctx.paper.opened == 0

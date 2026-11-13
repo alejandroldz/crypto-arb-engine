@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from app.core.decimals import D
+from app.core.decimals import D, div
 from app.engines.arbitrage import FundingOpportunity, detect_funding_carry
 from app.engines.risk import CarryPositionRisk, StalenessGate, UtaAccountState
 from app.engines.validator import approve_unified_carry
@@ -147,6 +147,17 @@ async def handle_funding_candidate(
     perp_key = f"{rate.exchange}:{rate.symbol}"
     if spot_key not in ctx.books or perp_key not in ctx.books:
         return None
+    # F06: observable spread gate - the signal is only real if both books
+    # are sane. Fees+slippage buffer do not capture a 99-dollar spread.
+    max_spread = D(ctx.settings.max_book_spread_bps)
+    for key in (spot_key, perp_key):
+        b = ctx.books[key]
+        mid = (b.best_bid.price + b.best_ask.price) / 2
+        spread_bps = div(b.best_ask.price - b.best_bid.price, mid) * D("10000")
+        if spread_bps > max_spread:
+            logger.info("spread %s bps > %s en %s: senal rechazada",
+                        spread_bps, max_spread, key)
+            return None
     if not (
         ctx.gate.is_fresh(ctx.books[spot_key], now_ns)
         and ctx.gate.is_fresh(ctx.books[perp_key], now_ns)

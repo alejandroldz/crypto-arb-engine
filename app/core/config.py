@@ -73,6 +73,9 @@ class Settings(BaseSettings):
     # frescura exigida a los libros para operar PP (ms) - un venue caido
     # no es operable
     max_book_age_ms: int = 2000
+    # F06: spread relativo maximo por libro para ENTRAR (bps). Un libro con
+    # bid=1/ask=100 es una senal economicamente falsa, no una oportunidad
+    max_book_spread_bps: Decimal = Decimal("50")
     # perp-perp (modulo 1): arbitraje de funding entre venues, sin pata spot
     perp_perp_enabled: bool = False  # activado via .env tras validacion
     pp_min_net_profit_usd: Decimal = Decimal("2")
@@ -83,6 +86,9 @@ class Settings(BaseSettings):
     # frescura exigida a los libros para operar PP (ms) - un venue caido
     # no es operable
     max_book_age_ms: int = 2000
+    # F06: spread relativo maximo por libro para ENTRAR (bps). Un libro con
+    # bid=1/ask=100 es una senal economicamente falsa, no una oportunidad
+    max_book_spread_bps: Decimal = Decimal("50")
     # fee oracle: guardrail - cambio relativo de taker fee que bloquea entradas (%)
     fee_change_block_pct: Decimal = Decimal("20")
     fee_refresh_hours: Decimal = Decimal("4")
