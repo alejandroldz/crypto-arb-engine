@@ -1,0 +1,30 @@
+           crypto-arb-engine (paper trading)           
+┏━━━━━━┳━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━┓
+┃ Feed ┃ Symbol ┃ Best bid ┃ Best ask / rate ┃ Age ms ┃
+┡━━━━━━╇━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━┩
+└──────┴────────┴──────────┴─────────────────┴────────┘
+opportunities: 0 | open positions: 0 | paper PnL: 0 USD
+                     | breaker: ok                     
+  margin: UNIFIED 90% util | BTC ratio 95% | MMR n/a   
+     (warn 65%, unwind 75%) | max safe pump +190%      Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/sandbox/crypto-arb-engine/app/main.py", line 441, in <module>
+    entrypoint()
+  File "/home/sandbox/crypto-arb-engine/app/main.py", line 437, in entrypoint
+    asyncio.run(run())
+  File "/home/sandbox/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/asyncio/runners.py", line 195, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/home/sandbox/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/sandbox/.local/share/uv/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 691, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/home/sandbox/crypto-arb-engine/app/main.py", line 262, in run
+    append_funding_log(rate)
+  File "/home/sandbox/crypto-arb-engine/app/main.py", line 90, in append_funding_log
+    datetime.now(timezone.utc).isoformat(),
+                 ^^^^^^^^
+NameError: name 'timezone' is not defined
