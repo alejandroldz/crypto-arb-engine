@@ -186,8 +186,16 @@ class BookFeed:
             try:
                 if self.markets_list is not None:
                     ex.set_markets(self.markets_list)
-                else:
+                elif not self.derivative:
                     await ex.load_markets()
+                else:
+                    # op.#18: full load_markets OOMs the sandbox; a derivative
+                    # feed without the minimal market table fails CLOSED
+                    # instead of reintroducing that memory route
+                    raise RuntimeError(
+                        f"derivative feed {self.exchange_id} without minimal "
+                        "market table (full load_markets disabled)"
+                    )
                 markets = {s: ex.market(s) for s in self.symbols}
             except Exception as exc:
                 self.last_error = f"{type(exc).__name__}: {exc}"

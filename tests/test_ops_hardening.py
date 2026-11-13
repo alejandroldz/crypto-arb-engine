@@ -138,3 +138,28 @@ async def test_hung_watch_falls_back_to_rest(monkeypatch):
     assert got.exchange == "fakehung"
     stop.set()
     await asyncio.wait_for(task, timeout=5)
+
+
+# ---- op.#10: DB defaults live under the mounted volume ----
+
+def test_db_defaults_under_data_dir():
+    from app.core.config import Settings
+    s = Settings()
+    assert "/data/" in s.sqlite_url
+    assert s.duckdb_path.startswith("./data/")
+
+
+# ---- op.#18: derivative feed without market table fails closed ----
+
+async def test_derivative_feed_without_markets_fails_closed(monkeypatch):
+    monkeypatch.setattr(ccxt_manager.ccxtpro, "fakenometa", FakeHungEx, raising=False)
+    bus = EventBus()
+    q = bus.subscribe(BOOKS_TOPIC)
+    stop = asyncio.Event()
+    feed = BookFeed("fakenometa", ["BTC/USD:USD"], rest_backoff_s=0,
+                    markets_list=None, derivative=True, watch_timeout_s=0.05)
+    task = asyncio.create_task(feed.run(bus, stop))
+    await asyncio.sleep(0.3)
+    stop.set()
+    await asyncio.wait_for(task, timeout=5)
+    assert q.empty()  # nothing published without contract metadata

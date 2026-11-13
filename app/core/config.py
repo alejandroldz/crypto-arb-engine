@@ -132,8 +132,10 @@ class Settings(BaseSettings):
     cb_order_window_seconds: int = 60
 
     # storage
-    sqlite_url: str = "sqlite+aiosqlite:///./arb_state.db"
-    duckdb_path: str = "./arb_ticks.duckdb"
+    # op.#10: under ./data, the dir docker-compose mounts as a volume - a
+    # container recreate no longer loses positions/ticks
+    sqlite_url: str = "sqlite+aiosqlite:///./data/arb_state.db"
+    duckdb_path: str = "./data/arb_ticks.duckdb"
 
     # paper trading
     paper_start_balance_usd: Decimal = Decimal("10000")

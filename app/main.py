@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from pathlib import Path
 import signal
 import sys
 import time
@@ -143,14 +144,19 @@ def append_funding_log(rate):
 
 
 async def run() -> None:
+    from logging.handlers import RotatingFileHandler
+
     logging.basicConfig(
-        filename="engine.log",
         level=logging.INFO,
         format="%(asctime)s %(name)s %(levelname)s %(message)s",
+        # op.#18: bounded log growth (3 x 5MB), no silent disk fill
+        handlers=[RotatingFileHandler(
+            "engine.log", maxBytes=5_000_000, backupCount=3)],
     )
     settings = get_settings()
     console = Console()
     bus = EventBus()
+    Path(settings.duckdb_path).parent.mkdir(parents=True, exist_ok=True)
     repo = Repository(settings.sqlite_url)
     await repo.init()
     ticks = TickStore(settings.duckdb_path)
@@ -704,8 +710,17 @@ async def run() -> None:
                 except Exception as exc:
                     # F09: a bad record must not kill the management loop
                     logger.warning("funding persist dropped %s: %s", fkey, exc)
-                append_funding_log(rate)
-                await handle_funding_candidate(carry_ctx, rate, now_ns)
+                try:
+                    append_funding_log(rate)
+                except Exception as exc:
+                    logger.warning("funding csv append failed: %s", exc)
+                try:
+                    await handle_funding_candidate(carry_ctx, rate, now_ns)
+                except Exception as exc:
+                    # op.#11: a candidate failure must not kill both modules
+                    logger.exception("carry candidate failed: %s", exc)
+                    await notifier.send(f"CANDIDATE ERROR: {type(exc).__name__}: {exc}")
+                    breaker.record_failure()
                 if pp_ctx is not None:
                     try:
                         await pp_handle_funding(pp_ctx, rate)
@@ -794,11 +809,17 @@ async def run() -> None:
                     logger.warning("funding accrual uncertain for %s (missed payments)", key)
                     await notifier.send(f"ACCRUAL UNCERTAIN {key}: missed funding payments")
                 carry.last_payment_ts = decision.new_payment_ts
-                if decision.accrual != ZERO:  # F04: costs count too
-                    carry.funding_collected += decision.accrual
-                    await repo.add_funding(carry.fill.position_id, decision.accrual)
-                if decision.action is MonitorAction.UNWIND:
-                    await close_carry(key, carry, decision.reason)
+                try:
+                    if decision.accrual != ZERO:  # F04: costs count too
+                        carry.funding_collected += decision.accrual
+                        await repo.add_funding(carry.fill.position_id, decision.accrual)
+                    if decision.action is MonitorAction.UNWIND:
+                        await close_carry(key, carry, decision.reason)
+                except Exception as exc:
+                    # op.#11: one carry's failure must not kill the module
+                    logger.exception("carry manage failed %s: %s", key, exc)
+                    await notifier.send(f"CARRY MANAGE ERROR {key}: {type(exc).__name__}")
+                    breaker.record_failure()
             # op.#8: daily loss limit sees open exposure too (MTM at
             # top-of-book exit prices, fees ignored = optimistic, so the
             # trip is if anything late, never early)
@@ -861,6 +882,9 @@ async def run() -> None:
     stop.set()
     for t in tasks:
         t.cancel()
+    # op.#11: await cancellation so feeds close ccxt clients and the stores
+    # flush+close cleanly; close() itself flushes the duckdb buffer (op.#15)
+    await asyncio.gather(*tasks, return_exceptions=True)
     ticks.close()
     await repo.close()
 
