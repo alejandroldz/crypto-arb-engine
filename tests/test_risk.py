@@ -1,9 +1,13 @@
 """Risk gates: staleness (RISK 3), liquidation (RISK 5), funding flip (RISK 4)."""
+import pytest
 from app.connectors.normalizer import L2OrderBook, OrderBookLevel
 from app.core.decimals import D
 from app.engines.risk import (
+    capital_efficiency,
+    isolated_max_pump_pct,
     CarryPositionRisk,
     StalenessGate,
+    UtaAccountState,
     approaching_liquidation,
     funding_flip_should_unwind,
     leverage_ok,
@@ -57,3 +61,41 @@ def test_leverage_bounds():
     assert leverage_ok(D("2"), D("2"))
     assert not leverage_ok(D("3"), D("2"))
     assert not leverage_ok(D("0.5"), D("2"))
+
+
+def test_capital_efficiency_levels():
+    assert capital_efficiency(D("1")) == D("0.5")
+    assert capital_efficiency(D("3")) == D("0.75")
+    assert capital_efficiency(D("5")) == D("5") / D("6")
+    # monotonic and bounded
+    assert capital_efficiency(D("10")) > capital_efficiency(D("5"))
+    assert capital_efficiency(D("10")) < D("1")
+
+
+def test_isolated_max_pump():
+    assert isolated_max_pump_pct(D("1")) == D("1")
+    assert isolated_max_pump_pct(D("2")) == D("0.5")
+    assert isolated_max_pump_pct(D("5")) == D("0.2")
+    # only 1x survives the validator's +80% rule in isolated mode
+    assert isolated_max_pump_pct(D("1")) >= D("0.80")
+    assert isolated_max_pump_pct(D("3")) < D("0.80")
+
+
+def test_uta_margin_locked_scales_with_leverage():
+    base = UtaAccountState(
+        equity=D("10000"), utilization=D("0.90"),
+        collateral_ratio=D("0.95"), sim_mmr_rate=D("0.25"),
+    )
+    lev3 = UtaAccountState(
+        equity=D("10000"), utilization=D("0.90"),
+        collateral_ratio=D("0.95"), sim_mmr_rate=D("0.25"), leverage=D("3"),
+    )
+    assert base.margin_locked == D("9000")
+    assert lev3.margin_locked == D("3000")
+
+
+def test_short_leverage_config_bounds():
+    from app.core.config import Settings
+    Settings(short_leverage=3, max_leverage=10)  # ok
+    with pytest.raises(Exception):
+        Settings(short_leverage=5, max_leverage=2)

@@ -53,6 +53,26 @@ def leverage_ok(leverage: Decimal, max_leverage: Decimal) -> bool:
     return D("1") <= lev <= D(max_leverage)
 
 
+def capital_efficiency(leverage: Decimal) -> Decimal:
+    """Fraction of the funding rate captured per unit of committed capital.
+
+    Capital per unit of carry notional: 1 (spot cash) + 1/L (short margin),
+    so efficiency = L/(L+1): 50% at 1x, 75% at 3x, 83% at 5x.
+    """
+    lev = D(leverage)
+    return div(lev, lev + D("1"))
+
+
+def isolated_max_pump_pct(leverage: Decimal) -> Decimal:
+    """Optimistic pump an isolated-margin short survives: 1/L.
+
+    Maintenance margin makes real liquidation slightly earlier. In UNIFIED
+    cross-collateral mode the account-level max_safe_pump_pct governs
+    instead and is independent of leverage at fixed notional.
+    """
+    return div(D("1"), D(leverage))
+
+
 @dataclass(frozen=True)
 class CarryPositionRisk:
     """Risk view of an open cash-and-carry position."""
@@ -91,10 +111,16 @@ class UtaAccountState:
     utilization: Decimal
     collateral_ratio: Decimal
     sim_mmr_rate: Decimal
+    leverage: Decimal = Decimal("1")
 
     @property
     def notional(self) -> Decimal:
         return mul(D(self.equity), D(self.utilization))
+
+    @property
+    def margin_locked(self) -> Decimal:
+        """Initial margin the short leg consumes at the configured leverage."""
+        return div(self.notional, D(self.leverage))
 
     @property
     def buffer_cash(self) -> Decimal:

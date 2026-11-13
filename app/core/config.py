@@ -9,7 +9,7 @@ from __future__ import annotations
 from decimal import Decimal
 from functools import lru_cache
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.core.decimals import D, ZERO
@@ -53,6 +53,9 @@ class Settings(BaseSettings):
 
     # perp risk (RISK 5)
     max_leverage: Decimal = Decimal("2")
+    # leverage of the paper perp short leg (1 = fully margined). EU MiFID
+    # venues cap retail crypto perps at 10x; see scripts/leverage_compare.py
+    short_leverage: Decimal = Decimal("1")
     liquidation_buffer_pct: Decimal = Decimal("15")
 
     # circuit breaker (RISK 6)
@@ -100,6 +103,7 @@ class Settings(BaseSettings):
         "liquidity_haircut",
         "default_taker_fee_bps",
         "max_leverage",
+        "short_leverage",
         "liquidation_buffer_pct",
         "max_daily_loss_usd",
         "paper_start_balance_usd",
@@ -117,9 +121,18 @@ class Settings(BaseSettings):
     @field_validator("max_leverage")
     @classmethod
     def _leverage_bounds(cls, v: Decimal) -> Decimal:
-        if v < Decimal("1") or v > Decimal("2"):
-            raise ValueError("max_leverage must be within [1, 2] (RISK 5)")
+        if v < Decimal("1") or v > Decimal("10"):
+            raise ValueError("max_leverage must be within [1, 10] (EU cap)")
         return v
+
+    @model_validator(mode="after")
+    def _short_leverage_within_cap(self) -> "Settings":
+        if not (Decimal("1") <= self.short_leverage <= self.max_leverage):
+            raise ValueError(
+                f"short_leverage {self.short_leverage} outside "
+                f"[1, max_leverage={self.max_leverage}]"
+            )
+        return self
 
     @field_validator("liquidity_haircut")
     @classmethod

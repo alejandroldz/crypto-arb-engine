@@ -174,6 +174,7 @@ async def run() -> None:
             utilization=D(settings.uta_capital_utilization_pct),
             collateral_ratio=coll_ratio,
             sim_mmr_rate=D(settings.sim_maintenance_margin_rate),
+            leverage=D(settings.short_leverage),
         )
         if unified
         else None
@@ -218,7 +219,9 @@ async def run() -> None:
             spot_key=spot_key,
             perp_key=perp_key,
             funding_key=perp_key,
-            risk=CarryPositionRisk.build(D(pos.perp_entry_vwap), D("1")),
+            risk=CarryPositionRisk.build(
+                        D(pos.perp_entry_vwap), D(settings.short_leverage)
+                    ),
             funding_collected=D(pos.funding_collected),
             last_payment_ts=None,  # unknown: first payment after restart is flagged
             accrual_uncertain=True,

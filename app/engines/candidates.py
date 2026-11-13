@@ -131,7 +131,7 @@ async def handle_funding_candidate(
         spot_key=ctx.spot_key_default,
         perp_key=perp_key,
         funding_key=fkey,
-        risk=CarryPositionRisk.build(fill.perp_vwap, D("1")),
+        risk=CarryPositionRisk.build(fill.perp_vwap, D(ctx.settings.short_leverage)),
         funding_collected=Decimal("0"),
         last_payment_ts=rate.next_funding_ts,
         uta=ctx.uta_state,
