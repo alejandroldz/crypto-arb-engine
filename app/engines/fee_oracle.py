@@ -130,7 +130,34 @@ class FeeOracle:
         blocked: set[str] = set(state.get("review_required", []))
         now = datetime.now(timezone.utc).isoformat()
 
-        for venue, fetch in fetchers.items():
+        # audit C1: iterate ALL active venues, not only those with a
+        # fetcher - a venue without keys still applies its cached/config
+        # fallback instead of silently keeping stale config values
+        venues = set(fetchers) | set(self.settings.spot_exchange_list) | set(
+            self.settings.perp_exchange_list
+        )
+        for venue in venues:
+            fetch = fetchers.get(venue)
+            if fetch is None:
+                prev = cached.get(venue)
+                if prev is not None:
+                    out[venue] = FeeQuote(
+                        D(prev["maker_bps"]), D(prev["taker_bps"]), "cache"
+                    )
+                    logger.info(
+                        "fees %s: maker %s bps, taker %s bps (cache, sin fetcher)",
+                        venue, prev["maker_bps"], prev["taker_bps"],
+                    )
+                else:
+                    out[venue] = FeeQuote(
+                        self.settings.maker_fee_bps_map.get(
+                            venue, self.settings.default_taker_fee_bps),
+                        self.settings.taker_fee_bps_map.get(
+                            venue, self.settings.default_taker_fee_bps),
+                        "config",
+                    )
+                    logger.info("fees %s: config fallback (sin fetcher ni cache)", venue)
+                continue
             try:
                 maker, taker = await fetch()
                 quote = FeeQuote(maker, taker, "api")

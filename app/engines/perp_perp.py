@@ -145,6 +145,7 @@ class PerpPerpTrader:
         imbalance_tolerance: Decimal = D("0.001"),
         fee_currency: str = "USD",
         min_net_profit_usd: Decimal = D("0"),
+        settings=None,
     ):
         self.repo = repo
         self.latency_ms = latency_ms
@@ -157,6 +158,16 @@ class PerpPerpTrader:
         self.imbalance_tolerance = D(imbalance_tolerance)
         self.fee_currency = fee_currency
         self.min_net_profit_usd = D(min_net_profit_usd)
+        # audit fix: optional live settings reference - fees resolve per
+        # ACTUAL venue at fill time; constructor bps are the fallback
+        self.settings = settings
+
+    def _bps(self, passive: bool, exchange: str | None = None) -> Decimal:
+        if self.settings is not None and exchange:
+            if passive:
+                return D(self.settings.maker_fee_for(exchange))
+            return D(self.settings.taker_fee_for(exchange))
+        return self.maker_fee_bps if passive else self.taker_fee_bps
 
     async def open_pair(
         self, opp: PerpPerpOpportunity, books_after_latency: BookSource
@@ -180,20 +191,23 @@ class PerpPerpTrader:
         qty = min(div(D(opp.notional), long_px), div(D(opp.notional), short_px))
         # audit fix #6: re-price with the REAL fill modes before committing;
         # abort if the taker fallback turned the trade into a loser
+        long_ex, short_ex = long_book.exchange, short_book.exchange
         extra = ZERO
         if self.execution_mode == "maker":
             if not long_passive:
-                extra += bps_of(mul(qty, long_px), self.taker_fee_bps - self.maker_fee_bps)
+                extra += bps_of(mul(qty, long_px),
+                                self._bps(False, long_ex) - self._bps(True, long_ex))
             if not short_passive:
-                extra += bps_of(mul(qty, short_px), self.taker_fee_bps - self.maker_fee_bps)
+                extra += bps_of(mul(qty, short_px),
+                                self._bps(False, short_ex) - self._bps(True, short_ex))
         if extra > ZERO and D(opp.projected_net) - extra < self.min_net_profit_usd:
             logger.info(
                 "pp entry aborted %s: fallback cost +%s USD, net %s < floor %s",
                 opp.base, extra, D(opp.projected_net) - extra, self.min_net_profit_usd,
             )
             return None
-        long_fee = bps_of(mul(qty, long_px), self.maker_fee_bps if long_passive else self.taker_fee_bps)
-        short_fee = bps_of(mul(qty, short_px), self.maker_fee_bps if short_passive else self.taker_fee_bps)
+        long_fee = bps_of(mul(qty, long_px), self._bps(long_passive, long_ex))
+        short_fee = bps_of(mul(qty, short_px), self._bps(short_passive, short_ex))
         position_id = await self.repo.open_position(
             symbol=opp.short_symbol,
             exchange_spot=f"{opp.long_exchange}(long)",
@@ -283,8 +297,10 @@ class PerpPerpTrader:
                 f"short filled {cover.base_qty}/{fill.qty_base}"
             )
         assert sell.vwap is not None and cover.vwap is not None
-        long_fee = bps_of(sell.filled_quote, self.taker_fee_bps)
-        short_fee = bps_of(cover.filled_quote, self.taker_fee_bps)
+        long_fee = bps_of(
+            sell.filled_quote, self._bps(False, long_book.exchange))
+        short_fee = bps_of(
+            cover.filled_quote, self._bps(False, short_book.exchange))
         # fix: subtract the entry fees actually recorded in the ledger
         entry_fees = await self.repo.entry_fees(fill.position_id)
         pnl = (

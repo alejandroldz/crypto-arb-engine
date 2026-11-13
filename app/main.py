@@ -153,6 +153,7 @@ async def run() -> None:
         min_net_profit_usd=settings.min_net_profit_usd,
         slippage_buffer_bps=settings.slippage_buffer_bps,
         liquidity_haircut=settings.liquidity_haircut,
+        settings=settings,
     )
 
     stop = asyncio.Event()
@@ -368,6 +369,7 @@ async def run() -> None:
                 maker_timeout_seconds=int(settings.maker_timeout_seconds),
                 maker_fallback=settings.maker_fallback,
                 min_net_profit_usd=D(settings.pp_min_net_profit_usd),
+                settings=settings,
             ),
             repo=repo,
             ticks=ticks,
@@ -502,7 +504,8 @@ async def run() -> None:
     reconcile_feeds(carry_ctx.eligible or set())
     if settings.screener_enabled:
         tasks.append(asyncio.create_task(screener_loop()))
-        tasks.append(asyncio.create_task(fee_refresh_loop()))
+    # audit fix: fee freshness must not depend on the screener being on
+    tasks.append(asyncio.create_task(fee_refresh_loop()))
 
     async def close_carry(key: str, carry: OpenCarry, reason: str) -> None:
         nonlocal realized_pnl

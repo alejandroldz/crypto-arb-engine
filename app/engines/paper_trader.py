@@ -52,6 +52,7 @@ class PaperTrader:
         maker_timeout_seconds: int = 60,
         maker_fallback: str = "taker",
         min_net_profit_usd: Decimal = Decimal("0"),
+        settings=None,
     ):
         self.repo = repo
         self.latency_ms = latency_ms
@@ -69,13 +70,30 @@ class PaperTrader:
         # costs more than the detection assumed and the net drops below
         # this floor, the entry is aborted instead of opening a loser
         self.min_net_profit_usd = D(min_net_profit_usd)
+        # audit fix: optional live settings reference. When present, fees
+        # resolve per ACTUAL venue at fill time (oracle updates detected_fees
+        # at runtime); the constructor bps remain the fallback (tests, no
+        # settings).
+        self.settings = settings
 
-    def _fee(self, leg: str, notional: Decimal, *, passive: bool = False) -> Decimal:
+    def _bps(self, leg: str, passive: bool, exchange: str | None = None) -> Decimal:
+        if self.settings is not None and exchange:
+            if passive:
+                return D(self.settings.maker_fee_for(exchange))
+            return D(self.settings.taker_fee_for(exchange))
         if leg == "spot":
-            bps = self.spot_maker_fee_bps if passive else self.spot_taker_fee_bps
-        else:
-            bps = self.perp_maker_fee_bps if passive else self.perp_taker_fee_bps
-        return bps_of(notional, bps)
+            return self.spot_maker_fee_bps if passive else self.spot_taker_fee_bps
+        return self.perp_maker_fee_bps if passive else self.perp_taker_fee_bps
+
+    def _fee(
+        self,
+        leg: str,
+        notional: Decimal,
+        *,
+        passive: bool = False,
+        exchange: str | None = None,
+    ) -> Decimal:
+        return bps_of(notional, self._bps(leg, passive, exchange))
 
     async def _maker_entries(
         self, books: BookSource, notional: Decimal
@@ -134,8 +152,13 @@ class PaperTrader:
             qty = min(
                 div(D(opp.notional), spot_px), div(D(opp.notional), perp_px)
             )
-            spot_fee = self._fee("spot", mul(qty, spot_px), passive=spot_passive)
-            perp_fee = self._fee("perp", mul(qty, perp_px), passive=perp_passive)
+            spot_book, perp_book = books_after_latency()
+            spot_fee = self._fee(
+                "spot", mul(qty, spot_px), passive=spot_passive,
+                exchange=spot_book.exchange)
+            perp_fee = self._fee(
+                "perp", mul(qty, perp_px), passive=perp_passive,
+                exchange=perp_book.exchange)
             logger.info(
                 "maker entry %s: spot %s @ %s (%s) | perp %s @ %s (%s)",
                 opp.symbol, qty, spot_px, "maker" if spot_passive else "taker-fallback",
@@ -153,24 +176,32 @@ class PaperTrader:
             # delta-neutral: equal base exposure on both legs
             qty = min(buy.base_qty, short.base_qty)
             spot_passive = perp_passive = False
-            spot_fee = self._fee("spot", mul(qty, buy.vwap))
-            perp_fee = self._fee("perp", mul(qty, short.vwap))
+            spot_fee = self._fee(
+                "spot", mul(qty, buy.vwap), exchange=spot_book.exchange)
+            perp_fee = self._fee(
+                "perp", mul(qty, short.vwap), exchange=perp_book.exchange)
             buy_vwap, short_vwap = buy.vwap, short.vwap
         # audit fix #6: the detection priced entries at maker fees (in maker
         # mode). If a leg actually crossed as taker, re-price the delta and
         # abort when the trade no longer clears the profit floor.
+        spot_ex, perp_ex = spot_book.exchange, perp_book.exchange
         extra = ZERO
         if self.execution_mode == "maker" and not spot_passive:
-            extra += bps_of(mul(qty, buy_vwap), self.spot_taker_fee_bps - self.spot_maker_fee_bps)
+            extra += bps_of(mul(qty, buy_vwap),
+                            self._bps("spot", False, spot_ex)
+                            - self._bps("spot", True, spot_ex))
         if self.execution_mode == "maker" and not perp_passive:
-            extra += bps_of(mul(qty, short_vwap), self.perp_taker_fee_bps - self.perp_maker_fee_bps)
+            extra += bps_of(mul(qty, short_vwap),
+                            self._bps("perp", False, perp_ex)
+                            - self._bps("perp", True, perp_ex))
         if extra > ZERO and D(opp.projected_net) - extra < self.min_net_profit_usd:
             logger.info(
                 "entry aborted %s: taker fallback costs +%s USD, net %s < floor %s",
                 opp.symbol, extra, D(opp.projected_net) - extra, self.min_net_profit_usd,
             )
             return None
-        spot_book, perp_book = books_after_latency()
+        if self.execution_mode != "maker":
+            spot_book, perp_book = books_after_latency()
 
         position_id = await self.repo.open_position(
             symbol=opp.symbol,
@@ -246,8 +277,8 @@ class PaperTrader:
         perp_close_cost = cover.filled_quote
         spot_entry_cost = mul(fill.qty_base, fill.spot_vwap)
         perp_entry_proceeds = mul(fill.qty_base, fill.perp_vwap)
-        spot_fee = self._fee("spot", spot_proceeds)
-        perp_fee = self._fee("perp", perp_close_cost)
+        spot_fee = self._fee("spot", spot_proceeds, exchange=spot_book.exchange)
+        perp_fee = self._fee("perp", perp_close_cost, exchange=perp_book.exchange)
         # fix: realized PnL must include the entry fees actually paid,
         # recovered from the orders ledger (not recomputed at current tiers)
         entry_fees = await self.repo.entry_fees(fill.position_id)
