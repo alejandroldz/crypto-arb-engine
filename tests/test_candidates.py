@@ -275,3 +275,31 @@ async def test_corroborating_sources_still_enter():
     ctx.screener_means = {"krakenfutures:BTC/USD:USD": Decimal("0.0009")}
     r = _rate("krakenfutures", "BTC/USD:USD")
     assert await handle_funding_candidate(ctx, r, time.monotonic_ns()) is not None
+
+
+@pytest.mark.asyncio
+async def test_quarantine_logs_once_per_transition(caplog):
+    """A persistent source flip must not spam the log on every funding
+    event: log on entry to quarantine, then silence until it lifts."""
+    import logging
+
+    settings = Settings(
+        spot_exchange_list=["kraken"], perp_exchange_list=["krakenfutures"],
+        min_net_profit_usd=Decimal("0.01"), min_funding_history=10,
+    )
+    ctx = _ctx(settings)
+    key = "krakenfutures:BTC/USD:USD"
+    ctx.screener_means = {key: Decimal("-0.0002")}
+    r = _rate("krakenfutures", "BTC/USD:USD")
+    with caplog.at_level(logging.WARNING):
+        for _ in range(3):
+            assert await handle_funding_candidate(
+                ctx, r, time.monotonic_ns()) is None
+    n = sum("funding source mismatch" in m for m in caplog.messages)
+    assert n == 1
+    assert key in ctx.quarantined
+    # sources agree again: quarantine lifts
+    ctx.screener_means = {key: Decimal("0.0009")}
+    assert await handle_funding_candidate(
+        ctx, r, time.monotonic_ns()) is not None
+    assert key not in ctx.quarantined

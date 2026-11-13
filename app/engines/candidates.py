@@ -75,6 +75,14 @@ class CarryContext:
     # notional used by OTHER strategies (e.g. perp-perp); run() wires this
     # so the portfolio budget is shared, not per-module
     external_allocated: "Callable[[], Decimal] | None" = None
+    # quarantine log-once: the mismatch check runs per funding event, but a
+    # persistent flip (real market change) must not spam the log every few
+    # minutes - log when a key ENTERS quarantine and when it LEAVES
+    quarantined: set = None  # type: ignore[assignment]  # set() in __post__
+
+    def __post_init__(self) -> None:
+        if self.quarantined is None:
+            self.quarantined = set()
 
 
 def sources_disagree(screener_mean: "Decimal", polled_mean: "Decimal") -> bool:
@@ -120,11 +128,14 @@ async def handle_funding_candidate(
     if smean is not None and len(history) >= ctx.settings.min_funding_history:
         pmean = sum(history) / len(history)
         if sources_disagree(D(smean), pmean):
-            logger.warning(
-                "funding source mismatch %s: screener mean %s vs polled mean %s - entries quarantined",
-                fkey, smean, pmean,
-            )
+            if fkey not in ctx.quarantined:
+                ctx.quarantined.add(fkey)
+                logger.warning(
+                    "funding source mismatch %s: screener mean %s vs polled mean %s - entries quarantined",
+                    fkey, smean, pmean,
+                )
             return None
+        ctx.quarantined.discard(fkey)  # sources agree again: back to normal
     opp = detect_funding_carry(
         rate,
         notional=ctx.notional,
