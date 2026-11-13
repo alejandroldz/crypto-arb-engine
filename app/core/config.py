@@ -24,7 +24,8 @@ class Settings(BaseSettings):
     live_trading_enabled: bool = False
 
     # exchanges (ccxt ids)
-    spot_exchanges: str = "kraken,binance"
+    spot_exchanges: str = "kraken"
+    spot_symbols: str = "BTC/USD"
     perp_exchanges: str = "deribit,krakenfutures"
     perp_symbols: str = "BTC-PERPETUAL,BTC/USD:USD"
 
@@ -99,6 +100,10 @@ class Settings(BaseSettings):
     @property
     def perp_exchange_list(self) -> list[str]:
         return [e.strip() for e in self.perp_exchanges.split(",") if e.strip()]
+
+    @property
+    def spot_symbol_list(self) -> list[str]:
+        return [s.strip() for s in self.spot_symbols.split(",") if s.strip()]
 
     @property
     def perp_symbol_list(self) -> list[str]:

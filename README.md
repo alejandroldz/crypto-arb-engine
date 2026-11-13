@@ -32,10 +32,12 @@ payout and break-even holding period are computed deterministically.
 
 ## Exchange notes
 
-Defaults: Kraken (spot), Deribit + Kraken Futures (perps) - all reachable
-from Spain/EU on free public endpoints, verified live from this repo's test
-runs. Bybit geo-blocks some jurisdictions at the CDN level; enable it only
-after confirming reachability from your own IP (`PERP_EXCHANGES`).
+Defaults: Kraken spot `BTC/USD` against Kraken Futures `BTC/USD:USD` (and
+Deribit `BTC-PERPETUAL`) - all USD-quoted, so the carry legs are exactly
+delta-neutral with no EUR/USD conversion. All reachable from Spain/EU on
+free public endpoints, verified live from this repo's test runs. Bybit
+geo-blocks some jurisdictions at the CDN level; enable it only after
+confirming reachability from your own IP (`PERP_EXCHANGES`).
 
 ## Quickstart
 
