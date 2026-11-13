@@ -105,3 +105,11 @@ def test_breakeven_always_recoups_costs(rate: str, notional: str):
         perp_taker_fee_bps=D("5"), slippage_buffer_bps=D("5"),
     )
     assert payout * be >= costs
+
+
+def test_f9_funding_rate_stats_drops_nonfinite():
+    from app.engines.arbitrage import funding_rate_stats
+    stats = funding_rate_stats([D("0.001"), D("NaN"), D("0.002"), D("Infinity"), D("-Infinity")])
+    assert stats is not None and stats.samples == 2
+    assert stats.mean == D("0.0015")
+    assert funding_rate_stats([D("NaN")]) is None

@@ -8,7 +8,7 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from app.core.decimals import D, ZERO
 
@@ -31,7 +31,19 @@ class OrderBookLevel(BaseModel):
     def _positive(cls, v: Decimal) -> Decimal:
         if v <= ZERO:
             raise ValueError("order book level price/qty must be positive")
+        # fuzz F19: magnitudes beyond DECIMAL(38,18) overflow persistence
+        # and explode arithmetic contexts downstream (1e999999 * qty)
+        if not v.is_finite() or v >= Decimal("1e20"):
+            raise ValueError(f"order book level out of range: {v}")
         return v
+
+    @model_validator(mode="after")
+    def _volume_representable(self) -> "OrderBookLevel":
+        # fuzz F19: 1e19 * 1e19 passes the per-field bound but overflows
+        # DECIMAL(38,18) when persisted as quote volume
+        if self.price * self.qty >= Decimal("1e20"):
+            raise ValueError("order book level quote volume out of range")
+        return self
 
     @property
     def quote_volume(self) -> Decimal:

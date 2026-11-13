@@ -29,8 +29,11 @@ class FundingRateStats:
 
 
 def funding_rate_stats(history: Sequence[Decimal]) -> FundingRateStats | None:
-    """Distribution of observed funding rates (all Decimal, nearest-rank)."""
-    rates = sorted(D(r) for r in history)
+    """Distribution of observed funding rates (all Decimal, nearest-rank).
+
+    fuzz F9: NaN in the history sorts unpredictably and poisons every
+    percentile; Infinity skews the mean. Drop non-finite observations."""
+    rates = sorted(r for r in (D(x) for x in history) if r.is_finite())
     n = len(rates)
     if n == 0:
         return None

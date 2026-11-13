@@ -119,3 +119,26 @@ def test_normalize_funding_prefers_funding_timestamp_over_next():
     }
     rate = normalize_funding("okx", "BTC/USD:USD-310404", raw)
     assert rate.next_funding_ts == datetime.fromtimestamp(1731570000, tz=timezone.utc)
+
+
+def test_f19_order_book_level_magnitude_bounds():
+    import pytest
+
+    from app.connectors.normalizer import OrderBookLevel
+    with pytest.raises(ValueError):
+        OrderBookLevel(price="1e999999", qty="10")
+    with pytest.raises(ValueError):
+        OrderBookLevel(price="1e20", qty="1")
+    with pytest.raises(ValueError):
+        OrderBookLevel(price="1e19", qty="1e19")  # product overflows DECIMAL(38,18)
+    ok = OrderBookLevel(price="50000", qty="0.5")
+    assert ok.price * ok.qty == 25000
+
+
+def test_f10b_order_book_level_bad_string_is_valueerror():
+    import pytest
+
+    from app.connectors.normalizer import OrderBookLevel
+    for bad in ("..", "NaN", "abc"):
+        with pytest.raises(ValueError):
+            OrderBookLevel(price=bad, qty="1")
