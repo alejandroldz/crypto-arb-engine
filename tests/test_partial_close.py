@@ -106,4 +106,4 @@ async def test_entry_fees_included_in_realized_pnl(tmp_path):
 
     async with repo._session() as s:
         fees = sum(D(o.fee) for o in (await s.execute(select(OrderRecord))).scalars().all())
-    assert abs(-pnl - fees) < D("0.01")  # PnL reconciles with the ledger
+    assert abs(pnl - (spread - fees)) < D("0.01")  # PnL reconciles with the ledger
