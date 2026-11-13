@@ -138,8 +138,10 @@ def test_f8_naive_aware_mixed_timestamps():
     aware_now = datetime(2026, 11, 13, 10, 2, tzinfo=timezone.utc)
     assert remote_book_stale(naive_old, now=aware_now) is True
     assert remote_book_stale(aware_now, now=naive_old + timedelta(minutes=2)) is False
-    # sequence guard with mixed tz: no TypeError
-    assert sequence_regressed(5, naive_old, 5, aware_now) is True
+    # sequence guard with mixed tz: no TypeError. Newer remote ts = resync
+    # (let through -> False); same ts = replay (True)
+    assert sequence_regressed(5, naive_old, 5, aware_now) is False
+    assert sequence_regressed(5, naive_old, 5, naive_old) is True
 
 
 def test_f16_monitor_accepts_naive_last_payment_ts():
