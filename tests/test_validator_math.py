@@ -9,7 +9,7 @@ from app.engines.validator import (
 )
 
 SPOT_FEE = D("40")  # kraken spot taker, worst tier
-PERP_FEE = D("5")  # krakenfutures/deribit taker
+PERP_FEE = D("5")  # krakenfutures/okx taker
 BUFFER = D("5")
 
 

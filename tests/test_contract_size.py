@@ -1,7 +1,7 @@
 """Derivative book amounts arrive in the venue's native unit (contracts or
 USD), not base currency. normalize_book must convert to base units or VWAP
 sizing is wrong by orders of magnitude (okx linear ctVal 0.0001 BTC,
-deribit inverse $10/contract)."""
+inverse venues $10/contract)."""
 from decimal import Decimal
 
 from app.connectors.ccxt_manager import normalize_book
@@ -23,9 +23,9 @@ def test_linear_contracts_convert_with_contract_size():
 
 
 def test_inverse_contracts_convert_with_price():
-    # deribit BTC-PERPETUAL: inverse, 1 contract = 10 USD
+    # inverse perps: 1 contract = 10 USD (kept generic post-deribit removal)
     market = {"contract": True, "linear": False, "contractSize": 10}
-    book = normalize_book("deribit", "BTC-PERPETUAL", RAW, market)
+    book = normalize_book("okx", "BTC/USD:USD-310404", RAW, market)
     expected = Decimal("10000") / Decimal("69000")
     assert abs(book.best_bid.qty - expected) < Decimal("1e-12")
 

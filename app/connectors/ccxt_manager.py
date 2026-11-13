@@ -28,7 +28,7 @@ FUNDING_TOPIC = "funding"
 async def fetch_minimal_markets(exchange_id: str) -> list:
     """Fetch ONLY the market definitions we need, as a raw list for
     ex.set_markets(). Full load_markets pulls entire options chains
-    (deribit/okx): hundreds of MB per ccxt instance, and BookFeed +
+    (okx options chains etc.): hundreds of MB per ccxt instance, and BookFeed +
     FundingPoller instances per venue OOM a 2GB sandbox. One list per venue
     is fetched once in main and shared (by reference) across instances.
     """
@@ -37,13 +37,6 @@ async def fetch_minimal_markets(exchange_id: str) -> list:
         if exchange_id == "okx":  # EU X-Perps are instType FUTURES
             r = await ex.public_get_public_instruments({"instType": "FUTURES"})
             raw = r.get("data", [])
-        elif exchange_id == "deribit":
-            # targeted single call: BTC futures only (the full load walks every
-            # currency's option chain - that alone peaks >1GB and OOMs)
-            return await ex.fetch_markets(
-                {"fetchAllMarkets": True, "currency": "BTC", "kind": "future",
-                 "expired": False}
-            )
         elif exchange_id in ("krakenfutures", "kraken"):
             # no parse_markets on these: fetch all (transient peak, one venue
             # at a time in main) and keep only what feeds subscribe to
@@ -64,7 +57,7 @@ def _contract_base_qty(qty, price, market: dict | None) -> str:
 
     ccxt leaves derivative book amounts in the venue's native unit: contracts
     (okx: contractSize base units per contract for linear, quote for inverse),
-    USD for deribit inverse perps, base units already for krakenfutures.
+    USD for inverse perps, base units already for krakenfutures.
     Spot markets and unit-sized contracts pass through unchanged.
     """
     q = Decimal(str(qty))
@@ -254,15 +247,6 @@ async def fetch_unified_account_health(
         # e.g. OKX Europe (MiFID) keys live on my.okx.com, not www.okx.com
         ex.hostname = hostname
     try:
-        if exchange_id == "deribit":
-            r = await ex.private_get_account_summary({"currency": "BTC"})
-            res = r.get("result", {})
-            return AccountHealth(
-                exchange=exchange_id,
-                total_equity=Decimal(str(res.get("equity", "0"))),
-                total_margin_balance=Decimal(str(res.get("margin_balance", "0"))),
-                total_maintenance_margin=Decimal(str(res.get("maintenance_margin", "0"))),
-            )
         if exchange_id == "okx":
             # v5 unified account: totalEq/adjEq; mgnRatio = adjEq/MM (OKX
             # inverts the spec's MMR). Empty account: mgnRatio is "".

@@ -12,14 +12,14 @@ RISK = CarryPositionRisk.build(D("50000"), D("1"))  # liq at 100000
 
 def rate(next_ts, r="0.0003", predicted=None):
     return FundingRate(
-        exchange="deribit", symbol="BTC-PERPETUAL", rate=r,
+        exchange="okx", symbol="BTC/USD:USD-310404", rate=r,
         predicted_rate=predicted, local_ts_ns=1, next_funding_ts=next_ts,
     )
 
 
 def book(ask: str) -> L2OrderBook:
     return L2OrderBook(
-        exchange="deribit", symbol="BTC-PERPETUAL",
+        exchange="okx", symbol="BTC/USD:USD-310404",
         bids=(OrderBookLevel(price="49990", qty="1"),),
         asks=(OrderBookLevel(price=ask, qty="1"),),
         local_ts_ns=1,

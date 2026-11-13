@@ -43,12 +43,13 @@ from app.core.decimals import D
 from app.core.events import EventBus
 from app.database.duckdb_store import TickStore
 from app.database.repository import Repository
-from app.engines.arbitrage import FundingOpportunity, detect_funding_carry
+from app.engines.candidates import CarryContext, OpenCarry, handle_funding_candidate
+from app.engines.arbitrage import FundingOpportunity
 from app.engines.monitor import MonitorAction, evaluate_carry
 from app.engines.paper_trader import PaperFill, PaperTrader
 from app.engines.risk import CarryPositionRisk, StalenessGate, UtaAccountState
-from app.engines.validator import approve_unified_carry, uta_allocation
-from app.ui.cli_dashboard import print_opportunity, render
+from app.engines.validator import uta_allocation
+from app.ui.cli_dashboard import render
 from app.ui.notifier import TelegramNotifier
 
 logger = logging.getLogger("main")
@@ -95,19 +96,6 @@ def append_funding_log(rate):
 
 
 
-@dataclass
-class OpenCarry:
-    fill: PaperFill
-    opp: FundingOpportunity
-    spot_key: str
-    perp_key: str
-    funding_key: str
-    risk: CarryPositionRisk
-    funding_collected: Decimal
-    last_payment_ts: datetime | None
-    accrual_uncertain: bool = False
-    uta: "UtaAccountState | None" = None
-    mmr_warned: bool = False
 
 
 async def run() -> None:
@@ -238,6 +226,26 @@ async def run() -> None:
         )
         logger.info("recovered open position %s (%s)", pos.id, perp_key)
 
+    carry_ctx = CarryContext(
+        settings=settings,
+        breaker=breaker,
+        gate=gate,
+        paper=paper,
+        ticks=ticks,
+        console=console,
+        notifier=notifier,
+        books=books,
+        opportunities=opportunities,
+        open_carries=open_carries,
+        spot_key_default=spot_key_default,
+        spot_symbol=spot_symbols[0],
+        spot_ex=spot_ex,
+        notional=notional,
+        uta_state=uta_state,
+        coll_ratio=coll_ratio,
+        max_safe_pump=max_safe_pump,
+    )
+
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, stop.set)
@@ -284,82 +292,7 @@ async def run() -> None:
                 funding[fkey] = rate
                 await asyncio.to_thread(ticks.record_funding, rate)
                 append_funding_log(rate)
-                if breaker.halted or not gate.is_fresh(rate, now_ns):
-                    continue
-                pkey = f"{spot_key_default}|{fkey}"
-                if pkey in open_carries:
-                    continue
-                history = await asyncio.to_thread(
-                    ticks.funding_history, rate.exchange, rate.symbol
-                )
-                opp = detect_funding_carry(
-                    rate,
-                    notional=notional,
-                    holding_intervals=90,
-                    spot_taker_fee_bps=settings.taker_fee_for(spot_ex),
-                    perp_taker_fee_bps=settings.taker_fee_for(rate.exchange),
-                    slippage_buffer_bps=settings.slippage_buffer_bps,
-                    min_net_profit_usd=settings.min_net_profit_usd,
-                    historical_rates=history,
-                    min_history_samples=settings.min_funding_history,
-                )
-                if opp is None:
-                    continue
-                opportunities.append(opp)
-                print_opportunity(console, opp)
-
-                perp_key = f"{rate.exchange}:{rate.symbol}"
-                if spot_key_default not in books or perp_key not in books:
-                    continue
-                if not (
-                    gate.is_fresh(books[spot_key_default], now_ns)
-                    and gate.is_fresh(books[perp_key], now_ns)
-                ):
-                    continue
-                if uta_state is not None:
-                    # NOTE: never reuse the name `gate` here - it is the
-                    # StalenessGate used above for every candidate.
-                    uta_gate = approve_unified_carry(
-                        collateral_ratio=coll_ratio,
-                        min_collateral_ratio=D(settings.min_collateral_ratio_required),
-                        max_safe_pump_pct=max_safe_pump,
-                    )
-                    if not uta_gate.approved:
-                        logger.info("UTA gate rejected %s: %s", rate.symbol, uta_gate.reason)
-                        continue
-                breaker.record_order()
-                breaker.record_order()
-
-                def fetch() -> tuple[L2OrderBook, L2OrderBook]:
-                    return books[spot_key_default], books[perp_key]
-
-                fill = await paper.open_carry(
-                    opp, fetch, spot_symbol=spot_symbols[0]
-                )
-                if fill is None:
-                    breaker.record_failure()
-                    continue
-                breaker.record_success()
-                open_carries[pkey] = OpenCarry(
-                    fill=fill,
-                    opp=opp,
-                    spot_key=spot_key_default,
-                    perp_key=perp_key,
-                    funding_key=fkey,
-                    risk=CarryPositionRisk.build(fill.perp_vwap, D("1")),
-                    funding_collected=Decimal("0"),
-                    last_payment_ts=rate.next_funding_ts,
-                    uta=uta_state,
-                )
-                logger.info(
-                    "paper open %s %s notional %s rate %s projected %s",
-                    opp.exchange, opp.symbol, opp.notional, opp.funding_rate,
-                    opp.projected_net,
-                )
-                await notifier.send(
-                    f"PAPER OPEN {opp.exchange} {opp.symbol} notional {opp.notional} "
-                    f"rate {opp.funding_rate} projected {opp.projected_net} USD"
-                )
+                await handle_funding_candidate(carry_ctx, rate, now_ns)
 
             if time.monotonic() - last_tick_flush > 30:
                 last_tick_flush = time.monotonic()

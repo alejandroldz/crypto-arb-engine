@@ -24,7 +24,7 @@ KW = dict(
 
 def funding(rate: str, predicted: str | None = None) -> FundingRate:
     return FundingRate(
-        exchange="deribit",
+        exchange="krakenfutures",
         symbol="BTC-PERPETUAL",
         rate=rate,
         predicted_rate=predicted,

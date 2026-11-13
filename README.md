@@ -36,13 +36,15 @@ payout and break-even holding period are computed deterministically.
 
 ## Exchange notes
 
-Defaults: Kraken spot `BTC/USD` against Kraken Futures `BTC/USD:USD` (and
-Deribit `BTC-PERPETUAL`) - all USD-quoted, so the carry legs are exactly
-delta-neutral with no EUR/USD conversion.
+Defaults: Kraken spot `BTC/USD` against Kraken Futures `BTC/USD:USD` and
+OKX EU X-Perp `BTC/USD:USD-310404` - all USD-quoted, so the carry legs are
+exactly delta-neutral with no EUR/USD conversion. Venues: Kraken + OKX
+only (user decision 2026-11-13; Deribit removed: new EU accounts migrate
+to Coinbase with different endpoints/auth).
 
 What was actually verified: public market-data endpoints (order books and
 funding rates) are reachable from the build/test environment without API
-keys for kraken, krakenfutures and deribit. This says nothing about retail
+keys for kraken, krakenfutures and okx. This says nothing about retail
 eligibility, derivative availability or account access from Spain/EU -
 unverified, user's responsibility. Bybit geo-blocks some jurisdictions at
 the CDN level (observed); enable it only after confirming reachability from

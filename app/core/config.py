@@ -26,11 +26,11 @@ class Settings(BaseSettings):
     # exchanges (ccxt ids)
     spot_exchanges: str = "kraken"
     spot_symbols: str = "BTC/USD"
-    perp_exchanges: str = "krakenfutures,okx,deribit"
+    perp_exchanges: str = "krakenfutures,okx"
     # OKX EU (MiFID, OKX Europe Malta) serves X-Perps: 5-year linear USD-
     # margined expiry futures with perp-style 8h funding, NOT the global
     # inverse swap BTC/USD:BTC. ccxt symbol for BTC-USD_UM_XPERP-310404:
-    perp_symbols: str = "BTC/USD:USD,BTC/USD:USD-310404,BTC-PERPETUAL"
+    perp_symbols: str = "BTC/USD:USD,BTC/USD:USD-310404"
 
     # sizing / profitability
     target_quote_sizes: str = "100,500,1000"
@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     liquidity_haircut: Decimal = Decimal("0.50")
     # per-venue taker fees in bps (worst-case retail tier; user must verify
     # their own tier). kraken spot taker is far pricier than perp venues.
-    taker_fee_bps: str = "kraken:40,krakenfutures:5,deribit:5,bybit:5.5,okx:5"
+    taker_fee_bps: str = "kraken:40,krakenfutures:5,bybit:5.5,okx:5"
     default_taker_fee_bps: Decimal = Decimal("40")
     # minimum funding-rate history samples before approving a carry
     min_funding_history: int = 30
@@ -83,8 +83,6 @@ class Settings(BaseSettings):
     # optional read-only API keys for real account health (never trading)
     krakenfutures_api_key: str = ""
     krakenfutures_api_secret: str = ""
-    deribit_client_id: str = ""
-    deribit_client_secret: str = ""
     okx_api_key: str = ""
     okx_api_secret: str = ""
     okx_api_passphrase: str = ""

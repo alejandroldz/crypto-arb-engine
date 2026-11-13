@@ -42,10 +42,10 @@ def test_normalize_funding_with_and_without_predicted():
         "nextFundingTimestamp": 1731570000000,
         "predictedRate": "-0.0002",
     }
-    rate = normalize_funding("deribit", "BTC-PERPETUAL", raw)
+    rate = normalize_funding("okx", "BTC/USD:USD-310404", raw)
     assert rate.rate and rate.predicted_rate < 0
     raw2 = {"fundingRate": "0.0001"}
-    rate2 = normalize_funding("deribit", "BTC-PERPETUAL", raw2)
+    rate2 = normalize_funding("okx", "BTC/USD:USD-310404", raw2)
     assert rate2.predicted_rate is None and rate2.next_funding_ts is None
 
 
