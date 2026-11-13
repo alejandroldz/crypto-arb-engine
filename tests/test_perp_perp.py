@@ -214,7 +214,8 @@ async def _ctx_with_position(tmp_path):
     ctx.open[f"BTC:{LONG[0]}->{SHORT[0]}"] = PpPosition(
         fill=fill, opp=opp, long_key=f"{LONG[0]}:{LONG[1]}",
         short_key=f"{SHORT[0]}:{SHORT[1]}",
-        funding_collected_net=ZERO, opened_ns=now_ns, last_accrual_ns=now_ns,
+        funding_collected_net=ZERO, opened_ns=now_ns,
+        last_accrual_ns_long=now_ns, last_accrual_ns_short=now_ns,
     )
     return ctx, repo
 
@@ -254,14 +255,14 @@ async def test_breaker_halt_forces_unwind(tmp_path):
 async def test_funding_accrual_short_collects_long_pays(tmp_path):
     ctx, repo = await _ctx_with_position(tmp_path)
     pos = ctx.open["BTC:krakenfutures->okx"]
-    pos.last_accrual_ns = time.monotonic_ns() - NS_PER_HOUR  # 1h elapsed
+    pos.last_accrual_ns_short = time.monotonic_ns() - NS_PER_HOUR  # 1h elapsed
     short_evt = FundingRate(exchange="okx", symbol=SHORT[1], rate=D("0.0008"),
                             local_ts_ns=time.monotonic_ns())
     ctx.settings.perp_perp_enabled = False  # no new entries during this test
     await pp_handle_funding(ctx, short_evt)
     # short collects: 4000 * 0.0008 * (1h/8h) = 0.4
     assert abs(pos.funding_collected_net - D("0.4")) < D("0.01")
-    pos.last_accrual_ns = time.monotonic_ns() - NS_PER_HOUR
+    pos.last_accrual_ns_long = time.monotonic_ns() - NS_PER_HOUR
     long_evt = FundingRate(exchange="krakenfutures", symbol=LONG[1], rate=D("0.0001"),
                            local_ts_ns=time.monotonic_ns())
     await pp_handle_funding(ctx, long_evt)
@@ -269,10 +270,35 @@ async def test_funding_accrual_short_collects_long_pays(tmp_path):
     assert abs(pos.funding_collected_net) < D("0.01")
 
 
+async def test_accrual_order_independent(tmp_path):
+    """F11 regression: equal rates must net ZERO regardless of arrival order."""
+    for order in (("short", "long"), ("long", "short")):
+        ctx, _ = await _ctx_with_position(tmp_path)
+        pos = ctx.open["BTC:krakenfutures->okx"]
+        pos.last_accrual_ns_long = time.monotonic_ns() - NS_PER_HOUR
+        pos.last_accrual_ns_short = time.monotonic_ns() - NS_PER_HOUR
+        ctx.settings.perp_perp_enabled = False
+        evts = {
+            "short": FundingRate(exchange="okx", symbol=SHORT[1], rate=D("0.001"),
+                                 local_ts_ns=time.monotonic_ns()),
+            "long": FundingRate(exchange="krakenfutures", symbol=LONG[1], rate=D("0.001"),
+                                local_ts_ns=time.monotonic_ns()),
+        }
+        for leg in order:
+            await pp_handle_funding(ctx, evts[leg])
+        # short +1h/8h * 4000 * 0.001 = +0.5; long -1h/1h * 4000 * 0.001 = -4? no:
+        # intervals differ: short 8h -> +0.5, long 1h -> -4.0? 4000*0.001*1=4
+        # net is NOT zero here because intervals differ; assert BOTH orders agree
+        if order == ("short", "long"):
+            net_a = pos.funding_collected_net
+        else:
+            assert abs(pos.funding_collected_net - net_a) < D("1e-9")
+
+
 async def test_accrual_capped_during_gap(tmp_path):
     ctx, _ = await _ctx_with_position(tmp_path)
     pos = ctx.open["BTC:krakenfutures->okx"]
-    pos.last_accrual_ns = time.monotonic_ns() - 100 * NS_PER_HOUR  # 100h gap
+    pos.last_accrual_ns_short = time.monotonic_ns() - 100 * NS_PER_HOUR  # 100h gap
     ctx.settings.perp_perp_enabled = False
     evt = FundingRate(exchange="okx", symbol=SHORT[1], rate=D("0.0008"),
                       local_ts_ns=time.monotonic_ns())

@@ -74,40 +74,49 @@ def evaluate_carry(
     uncertain = False
     new_ts = last_payment_ts
 
-    # 2. funding payment processing
+    # 2. funding payment processing (F02: strict monotonic timestamps -
+    # a replayed or regressed timestamp never accrues and never rewinds)
     if rate is not None and rate.next_funding_ts is not None:
         if last_payment_ts is None:
             # restart recovery: we don't know which payments happened while
             # down - adopt the current timestamp, accrue nothing, flag it
             new_ts = rate.next_funding_ts
             uncertain = True
-        elif rate.next_funding_ts != last_payment_ts:
-            # approximation: accrue at the newly observed rate
+        elif rate.next_funding_ts < last_payment_ts:
+            uncertain = True  # out-of-order/replayed snapshot: ignore payment
+        elif rate.next_funding_ts > last_payment_ts:
+            # approximation: accrue at the newly observed rate (signed:
+            # a negative rate is a cost and must be accounted, F04)
             accrual = mul(mul(D(qty_base), D(perp_entry_vwap)), rate.rate)
             gap_s = (rate.next_funding_ts - last_payment_ts).total_seconds()
             if gap_s > Decimal("3") * D(rate.interval_hours) * 3600 / 2:
                 uncertain = True  # payments were missed while unobserved
             new_ts = rate.next_funding_ts
-            # 3. funding flip on the fresh snapshot (RISK 4)
-            effective = (
-                rate.predicted_rate if rate.predicted_rate is not None else rate.rate
-            )
-            if funding_flip_should_unwind(effective):
-                return MonitorDecision(
-                    action=MonitorAction.UNWIND,
-                    reason="funding flip",
-                    accrual=accrual,
-                    new_payment_ts=new_ts,
-                    accrual_uncertain=uncertain,
-                )
+
+    # 3. funding flip on EVERY fresh snapshot (F03), independent of whether
+    # a payment was processed or the venue even provides a timestamp
+    if rate is not None:
+        effective = (
+            rate.predicted_rate if rate.predicted_rate is not None else rate.rate
+        )
+        if funding_flip_should_unwind(effective):
             return MonitorDecision(
-                action=MonitorAction.ACCRUE,
-                reason="funding payment",
+                action=MonitorAction.UNWIND,
+                reason="funding flip",
                 accrual=accrual,
                 new_payment_ts=new_ts,
                 accrual_uncertain=uncertain,
                 account_mmr=mmr,
             )
+    if accrual != ZERO:
+        return MonitorDecision(
+            action=MonitorAction.ACCRUE,
+            reason="funding payment",
+            accrual=accrual,
+            new_payment_ts=new_ts,
+            accrual_uncertain=uncertain,
+            account_mmr=mmr,
+        )
 
     return MonitorDecision(
         action=MonitorAction.NONE,

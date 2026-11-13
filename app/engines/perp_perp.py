@@ -312,7 +312,10 @@ class PpPosition:
     short_key: str
     funding_collected_net: Decimal
     opened_ns: int
-    last_accrual_ns: int
+    # F11 fix: one accrual watermark PER LEG - a shared clock let the first
+    # event consume the whole elapsed window and zeroed the other leg
+    last_accrual_ns_long: int
+    last_accrual_ns_short: int
 
 
 @dataclass
@@ -429,7 +432,8 @@ async def _try_open(ctx: PpContext, base: str) -> None:
                 fill=fill, opp=opp, long_key=long_key, short_key=short_key,
                 funding_collected_net=ZERO,
                 opened_ns=time.monotonic_ns(),
-                last_accrual_ns=time.monotonic_ns(),
+                last_accrual_ns_long=time.monotonic_ns(),
+                last_accrual_ns_short=time.monotonic_ns(),
             )
             logger.info("pp OPEN %s net %s USD", pair_key, opp.projected_net)
             await ctx.notifier.send(
@@ -445,18 +449,23 @@ async def pp_handle_funding(ctx: PpContext, rate: FundingRate) -> None:
         sign = None
         if fkey == pos.short_key:
             sign = D("1")   # short collects when rate > 0
+            watermark = pos.last_accrual_ns_short
         elif fkey == pos.long_key:
             sign = D("-1")  # long pays when rate > 0
+            watermark = pos.last_accrual_ns_long
         if sign is None:
             continue
-        elapsed_h = D(now_ns - pos.last_accrual_ns) / D(NS_PER_HOUR)
+        elapsed_h = D(now_ns - watermark) / D(NS_PER_HOUR)
         elapsed_h = min(elapsed_h, interval_h * 2)  # suspension gaps don't mint yield
         if elapsed_h > 0:
             accrual = sign * mul(mul(D(pos.opp.notional), D(rate.rate)), elapsed_h / interval_h)
             pos.funding_collected_net += accrual
             if accrual != 0:
                 await ctx.repo.add_funding(pos.fill.position_id, accrual)
-        pos.last_accrual_ns = now_ns
+        if sign > 0:
+            pos.last_accrual_ns_short = now_ns
+        else:
+            pos.last_accrual_ns_long = now_ns
     if (not ctx.breaker.halted and not ctx.settings.fees_blocked
             and ctx.settings.perp_perp_enabled):
         for base in _common_bases(ctx.settings):

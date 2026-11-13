@@ -401,7 +401,8 @@ async def run() -> None:
                 short_key=short_key,
                 funding_collected_net=D(pos.funding_collected),
                 opened_ns=now_ns,  # restart resets the holding clock
-                last_accrual_ns=now_ns,
+                last_accrual_ns_long=now_ns,
+                last_accrual_ns_short=now_ns,
             )
             logger.info("recovered pp position %s (%s)", pos.id, pair_key)
 
@@ -605,7 +606,7 @@ async def run() -> None:
                     logger.warning("funding accrual uncertain for %s (missed payments)", key)
                     await notifier.send(f"ACCRUAL UNCERTAIN {key}: missed funding payments")
                 carry.last_payment_ts = decision.new_payment_ts
-                if decision.accrual > 0:
+                if decision.accrual != ZERO:  # F04: costs count too
                     carry.funding_collected += decision.accrual
                     await repo.add_funding(carry.fill.position_id, decision.accrual)
                 if decision.action is MonitorAction.UNWIND:
