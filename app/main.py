@@ -328,11 +328,13 @@ async def run() -> None:
         notional=notional,
         uta_state=uta_state,
         max_safe_pump=max_safe_pump,
+        # blacklist applies from the very first second (fix: before, a
+        # blacklisted key could open trades until the first sweep ran)
         eligible={
             f"{ex}:{sym}"
             for ex in settings.perp_exchange_list
             for sym in settings.perp_symbols_for(ex)
-        },
+        } - settings.screener_blacklist_keys,
     )
 
     # --- perp-perp module (decoupled: own trader, own context) ---
@@ -475,7 +477,10 @@ async def run() -> None:
                     whitelist_keys=seeded_keys,
                     blacklist_keys=settings.screener_blacklist_keys,
                 )
-                if new_eligible and new_eligible != (carry_ctx.eligible or set()):
+                # fix: an empty result IS a valid sweep outcome ("nothing is
+                # eligible") and must revoke eligibility; only an exception
+                # (fetch/parse failure) keeps the previous set
+                if new_eligible != (carry_ctx.eligible or set()):
                     logger.info("screener eligible: %s", sorted(new_eligible))
                     if carry_ctx.eligible is not None:
                         carry_ctx.eligible.clear()

@@ -208,3 +208,17 @@ async def test_carry_budget_counts_perp_perp_allocation():
     c = await handle_funding_candidate(ctx, _rate("krakenfutures", "BTC/USD:USD"), now)
     assert c is None
     assert ctx.paper.opened == 0
+
+
+@pytest.mark.asyncio
+async def test_blacklisted_key_never_opens():
+    """Fix: the blacklist guards the entry path itself, not just the set."""
+    settings = Settings(
+        min_net_profit_usd=Decimal("0.01"), min_funding_history=10,
+        screener_blacklist="krakenfutures:BTC/USD:USD",
+    )
+    ctx = _ctx(settings)
+    now = time.monotonic_ns()
+    c = await handle_funding_candidate(ctx, _rate("krakenfutures", "BTC/USD:USD"), now)
+    assert c is None
+    assert ctx.paper.opened == 0

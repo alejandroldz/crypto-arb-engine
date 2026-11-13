@@ -79,6 +79,8 @@ async def handle_funding_candidate(
     if ctx.breaker.halted or not ctx.gate.is_fresh(rate, now_ns):
         return None
     fkey = f"{rate.exchange}:{rate.symbol}"
+    if fkey in ctx.settings.screener_blacklist_keys:
+        return None
     if ctx.eligible is not None and fkey not in ctx.eligible:
         return None
     # the spot leg lives on the same base asset (BTC perp -> BTC/USD spot)
