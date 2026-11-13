@@ -129,10 +129,27 @@ class FeeOracle:
             # fuzz F36: valid JSON of the wrong shape silently froze fees
             logger.error("fees state is not a dict (%r) - ignoring", type(raw).__name__)
             return {}
+        # fuzz F21: schema-validate the two keys we rely on. A string
+        # "review_required" becomes a set of CHARACTERS and blocks every
+        # venue silently; corrupt "venues" poisons the cache chain.
+        rr = raw.get("review_required")
+        if rr is not None and (
+            not isinstance(rr, list) or not all(isinstance(v, str) for v in rr)
+        ):
+            logger.error("fees state review_required malformed (%r) - ignoring state", rr)
+            return {}
+        venues = raw.get("venues")
+        if venues is not None and not isinstance(venues, dict):
+            logger.error("fees state venues malformed - ignoring state")
+            return {}
         return raw
 
     def _save_state(self, state: dict) -> None:
-        self.state_path.write_text(json.dumps(state, indent=1, default=str))
+        # caos H10: tmp+replace like breaker/screener - a crash mid-write
+        # must not leave a truncated state file
+        tmp = self.state_path.with_suffix(self.state_path.suffix + ".tmp")
+        tmp.write_text(json.dumps(state, indent=1, default=str))
+        tmp.replace(self.state_path)
 
     def apply(self, detected: dict[str, FeeQuote], blocked: set[str]) -> None:
         """Push detected fees into settings (read by *_fee_for) + guardrail."""

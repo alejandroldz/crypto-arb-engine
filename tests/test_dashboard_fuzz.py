@@ -65,3 +65,28 @@ def test_f36_fees_state_wrong_shape_ignored(tmp_path):
     (tmp_path / "fees.json").write_text("[]")
     oracle = FeeOracle(Settings(), state_path=str(tmp_path / "fees.json"))
     assert oracle._load_state() == {}
+
+
+def test_f21_review_required_string_does_not_block_all(tmp_path):
+    from app.core.config import Settings
+    from app.engines.fee_oracle import FeeOracle
+    path = tmp_path / "fees.json"
+    path.write_text('{"venues": {}, "review_required": "kraken"}')
+    oracle = FeeOracle(Settings(), state_path=str(path))
+    assert oracle._load_state() == {}  # malformed -> ignored, not char-set
+    path.write_text('{"venues": [1,2], "review_required": []}')
+    assert oracle._load_state() == {}
+    path.write_text('{"venues": {"kraken": {"maker_bps": "2", "taker_bps": "5", "ts": "x"}}, "review_required": ["okx"]}')
+    assert oracle._load_state()["review_required"] == ["okx"]
+
+
+def test_h10_fee_state_save_is_atomic(tmp_path):
+    import json
+
+    from app.core.config import Settings
+    from app.engines.fee_oracle import FeeOracle
+    path = tmp_path / "fees.json"
+    oracle = FeeOracle(Settings(), state_path=str(path))
+    oracle._save_state({"venues": {}, "review_required": []})
+    assert json.loads(path.read_text()) == {"venues": {}, "review_required": []}
+    assert not (tmp_path / "fees.json.tmp").exists()

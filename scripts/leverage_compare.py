@@ -44,6 +44,9 @@ def latest_rates(csv_path: Path) -> dict[str, Decimal]:
     if not csv_path.exists():
         return {}
     with open(csv_path, newline="", encoding="utf-8") as fh:
+        # fuzz F25: a >128KB field raises _csv.Error; a corrupt row must not
+        # kill the report
+        csv.field_size_limit(10 * 1024 * 1024)
         for row in csv.DictReader(fh):
             if row.get("exchange") not in ACTIVE_VENUES:
                 continue
