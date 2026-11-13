@@ -160,3 +160,34 @@ async def test_unwind_failure_flags_uncertain():
     r = await make(ioc, market).execute(LEG1, LEG2)
     assert r.state == LegState.UNWIND_UNCERTAIN
     assert "leg1 unwind failed" in r.note
+
+
+@pytest.mark.asyncio
+async def test_f17_nan_fill_flags_uncertain_not_crash():
+    async def nan_ioc(leg):
+        return "NaN"
+    coord = make(place_ioc=nan_ioc)
+    r = await coord.execute(LEG1, LEG2)
+    assert r.state is LegState.UNWIND_UNCERTAIN
+    assert "manual check" in r.note
+
+
+@pytest.mark.asyncio
+async def test_f17_infinite_leg2_fill_never_fakes_clean_unwound():
+    calls = {"n": 0}
+
+    async def ioc(leg):
+        calls["n"] += 1
+        return D("0.1") if calls["n"] == 1 else "Infinity"
+
+    flattened = []
+
+    async def market(exchange, symbol, side, qty):
+        flattened.append((exchange, side, qty))
+        return D("0")
+
+    coord = make(place_ioc=ioc, place_market=market)
+    r = await coord.execute(LEG1, LEG2)
+    assert r.state is LegState.UNWIND_UNCERTAIN
+    assert flattened  # leg1 was flattened
+    assert "both legs flattened" not in r.note

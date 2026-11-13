@@ -84,6 +84,20 @@ class AtomicLegCoordinator:
         self.max_leg_delay_ms = max_leg_delay_ms
         self.reconcile_fills = reconcile_fills
 
+    @staticmethod
+    def _valid_fill(raw: object) -> Decimal | None:
+        """fuzz F17: a venue fill that is not a finite Decimal >= 0 cannot
+        drive the state machine (NaN poisons comparisons with
+        InvalidOperation; Infinity fakes a clean UNWOUND). None = invalid,
+        treat the outcome as UNKNOWN (UNWIND_UNCERTAIN), never as zero."""
+        try:
+            d = D(str(raw))
+        except (TypeError, ValueError):
+            return None
+        if not d.is_finite() or d < ZERO:
+            return None
+        return d
+
     async def _actual_fills(self, leg: LegOrder) -> Decimal | None:
         if self.reconcile_fills is None:
             return None
@@ -134,10 +148,18 @@ class AtomicLegCoordinator:
         """Run the atomic pair. leg1 MUST be the less liquid leg."""
         # --- leg 1 ---
         try:
-            filled1 = D(await self.place_ioc(leg1))
+            filled1 = self._valid_fill(await self.place_ioc(leg1))
+            if filled1 is None:
+                # venue returned garbage: exposure unknown, fail loud
+                return ExecutionResult(
+                    state=LegState.UNWIND_UNCERTAIN,
+                    filled_leg1=ZERO, filled_leg2=ZERO,
+                    unwound_leg1=ZERO, unwound_leg2=ZERO,
+                    note="leg1 fill not finite/valid - manual check required",
+                )
         except Exception as exc:
             actual = await self._actual_fills(leg1)
-            if actual is None:
+            if actual is None or self._valid_fill(actual) is None:
                 return ExecutionResult(
                     state=LegState.UNWIND_UNCERTAIN,
                     filled_leg1=ZERO,
@@ -172,11 +194,21 @@ class AtomicLegCoordinator:
         leg2_sized = replace(leg2, qty_base=filled1)
         filled2: Decimal | None
         try:
-            filled2 = D(
+            filled2 = self._valid_fill(
                 await asyncio.wait_for(
                     self.place_ioc(leg2_sized), timeout=self.max_leg_delay_ms / 1000
                 )
             )
+            if filled2 is None:
+                # venue returned garbage: exposure unknown, flatten leg1 and
+                # flag - never fake a clean UNWOUND with an infinite fill
+                result = await self._flatten(leg1, filled1, leg2_sized, ZERO)
+                return ExecutionResult(
+                    state=LegState.UNWIND_UNCERTAIN,
+                    filled_leg1=filled1, filled_leg2=ZERO,
+                    unwound_leg1=result.unwound_leg1, unwound_leg2=ZERO,
+                    note="leg2 fill not finite/valid - manual check required",
+                )
         except asyncio.TimeoutError:
             filled2 = await self._actual_fills(leg2_sized)  # None = unknown
         except Exception as exc:

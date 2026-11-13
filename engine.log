@@ -882,3 +882,13 @@ _duckdb.ResourceInUseException: Resource In Use Error: connection is busy with a
 2026-11-13 22:35:57,185 main INFO real account health okx: equity 0 mmr 0
 2026-11-13 22:36:05,879 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007119110904721193 vs polled mean -0.000003487956260187940594059405941 - entries quarantined
 2026-11-13 22:36:05,879 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007119110904721193 vs polled mean -0.000003487956260187940594059405941 - entries quarantined
+2026-11-13 22:36:36,468 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007119110904721193 vs polled mean -0.000003458203089190833333333333333 - entries quarantined
+2026-11-13 22:36:36,468 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007119110904721193 vs polled mean -0.000003458203089190833333333333333 - entries quarantined
+2026-11-13 22:36:57,182 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 22:36:57,182 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 22:36:58,203 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 22:36:58,203 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 22:37:07,478 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007119110904721193 vs polled mean -0.000003429029631523766990291262136 - entries quarantined
+2026-11-13 22:37:07,478 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007119110904721193 vs polled mean -0.000003429029631523766990291262136 - entries quarantined
+2026-11-13 22:37:38,841 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007119110904721193 vs polled mean -0.000003400412256967461538461538462 - entries quarantined
+2026-11-13 22:37:38,841 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007119110904721193 vs polled mean -0.000003400412256967461538461538462 - entries quarantined
