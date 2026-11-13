@@ -68,9 +68,23 @@ class CarryContext:
     # configured. The screener (or config default) owns the contents; an
     # open carry is never closed by removal from this set.
     eligible: "set[str] | None" = None
+    # screener's venue-historical funding mean per perp key, refreshed each
+    # sweep; used to corroborate the polled history (audit screener#11)
+    screener_means: "dict[str, Decimal] | None" = None
     # notional used by OTHER strategies (e.g. perp-perp); run() wires this
     # so the portfolio budget is shared, not per-module
     external_allocated: "Callable[[], Decimal] | None" = None
+
+
+def sources_disagree(screener_mean: "Decimal", polled_mean: "Decimal") -> bool:
+    """Material discrepancy between two funding sources (audit screener#11):
+    opposite signs, or a >3x magnitude gap. Zero/None never 'disagree'."""
+    if not screener_mean or not polled_mean:
+        return False
+    if (screener_mean > 0) != (polled_mean > 0):
+        return True
+    a, b = abs(screener_mean), abs(polled_mean)
+    return max(a, b) > 3 * min(a, b)
 
 
 async def handle_funding_candidate(
@@ -93,11 +107,23 @@ async def handle_funding_candidate(
         return None
     if ctx.settings.fees_blocked:
         return None  # fee guardrail: entradas bloqueadas hasta revision manual
+    # holding horizon 30 days expressed in THIS venue's funding intervals
+    interval_h = ctx.settings.funding_interval_h_for(rate.exchange)
     history = await asyncio.to_thread(
         ctx.ticks.funding_history, rate.exchange, rate.symbol
     )
-    # holding horizon 30 days expressed in THIS venue's funding intervals
-    interval_h = ctx.settings.funding_interval_h_for(rate.exchange)
+    # audit screener#11: corroborate the polled history against the
+    # screener's independent venue-historical mean; a material discrepancy
+    # quarantines ENTRIES (open positions keep being managed)
+    smean = (ctx.screener_means or {}).get(fkey)
+    if smean is not None and len(history) >= ctx.settings.min_funding_history:
+        pmean = sum(history) / len(history)
+        if sources_disagree(D(smean), pmean):
+            logger.warning(
+                "funding source mismatch %s: screener mean %s vs polled mean %s - entries quarantined",
+                fkey, smean, pmean,
+            )
+            return None
     opp = detect_funding_carry(
         rate,
         notional=ctx.notional,

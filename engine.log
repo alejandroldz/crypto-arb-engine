@@ -479,3 +479,19 @@ aiohttp.client_exceptions.ClientConnectionResetError: Cannot write to closing tr
 2026-11-13 18:57:46,489 ingestion WARNING book feed kraken BTC/USD: NetworkError: Connection closed by remote server, closing code 1006
 2026-11-13 18:58:04,301 main INFO real account health krakenfutures: equity 0 mmr 0
 2026-11-13 18:58:04,993 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 18:59:05,013 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 18:59:05,687 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 19:00:05,632 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 19:00:06,483 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 19:01:06,197 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 19:01:06,891 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 19:02:06,512 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 19:02:07,301 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 19:03:06,812 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 19:03:07,654 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 19:04:07,121 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 19:04:07,896 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 19:05:07,550 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 19:05:08,279 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 19:06:07,952 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 19:06:08,540 main INFO real account health okx: equity 0 mmr 0

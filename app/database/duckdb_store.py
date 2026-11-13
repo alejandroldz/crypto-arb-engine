@@ -154,7 +154,12 @@ class TickStore:
     def funding_history(
         self, exchange: str, symbol: str, limit: int = 500
     ) -> list[Decimal]:
-        """Observed funding rates, oldest first, for percentile statistics."""
+        """Observed funding rates, oldest first, for percentile statistics.
+
+        One row per settlement observation: record_funding already dedupes
+        polls that replay the same rate within the same interval (F08), so
+        min_funding_history means N distinct observations, not N polls.
+        """
         rows = self._conn.execute(
             "SELECT rate FROM funding_snapshots WHERE exchange = ? AND symbol = ? "
             "ORDER BY ts_utc DESC LIMIT ?",

@@ -442,6 +442,7 @@ async def run() -> None:
         )
         logger.info("recovered open position %s (%s)", pos.id, perp_key)
 
+    screener_means: dict = {}
     carry_ctx = CarryContext(
         settings=settings,
         breaker=breaker,
@@ -457,6 +458,7 @@ async def run() -> None:
         notional=notional,
         uta_state=uta_state,
         max_safe_pump=max_safe_pump,
+        screener_means=screener_means,
         # blacklist applies from the very first second (fix: before, a
         # blacklisted key could open trades until the first sweep ran)
         eligible={
@@ -628,8 +630,12 @@ async def run() -> None:
                     min_volume_usd=min_vol, bases=spot_bases)
                 raw += await screener_io.fetch_krakenfutures_metrics(
                     min_volume_usd=min_vol, bases=spot_bases)
+                sweep_metrics = [m for m in (scr.from_raw(r) for r in raw) if m is not None]
+                screener_means.clear()
+                screener_means.update(
+                    {m.key: m.funding_mean for m in sweep_metrics if m.funding_mean is not None})
                 new_eligible = scr.run_sweep(
-                    [m for m in (scr.from_raw(r) for r in raw) if m is not None],
+                    sweep_metrics,
                     hyst,
                     min_volume_usd=D(settings.screener_min_volume_usd),
                     min_positive_pct=D(settings.screener_min_positive_pct),

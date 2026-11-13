@@ -20,7 +20,7 @@ from app.engines.risk import StalenessGate, UtaAccountState
 
 
 class FakeTicks:
-    def funding_history(self, exchange, symbol, limit=500):
+    def funding_history(self, exchange, symbol, limit=500, interval_h=1):
         return [Decimal("0.001")] * 50  # p25 blend keeps the full rate
 
 
@@ -239,3 +239,37 @@ async def test_huge_spread_candidate_rejected():
     c = await handle_funding_candidate(ctx, _rate("krakenfutures", "BTC/USD:USD"), now)
     assert c is None
     assert ctx.paper.opened == 0
+
+
+def test_sources_disagree():
+    from app.engines.candidates import sources_disagree
+    assert sources_disagree(Decimal("-0.0002"), Decimal("0.0001"))
+    assert sources_disagree(Decimal("0.0002"), Decimal("-0.0001"))
+    assert sources_disagree(Decimal("0.001"), Decimal("0.0002"))
+    assert not sources_disagree(Decimal("0.00010"), Decimal("0.00012"))
+    assert not sources_disagree(Decimal("0"), Decimal("0.001"))
+
+
+@pytest.mark.asyncio
+async def test_source_mismatch_quarantines_entry():
+    settings = Settings(
+        spot_exchange_list=["kraken"], perp_exchange_list=["krakenfutures"],
+        min_net_profit_usd=Decimal("0.01"), min_funding_history=10,
+    )
+    ctx = _ctx(settings)
+    ctx.screener_means = {"krakenfutures:BTC/USD:USD": Decimal("-0.0002")}
+    r = _rate("krakenfutures", "BTC/USD:USD")
+    assert await handle_funding_candidate(ctx, r, time.monotonic_ns()) is None
+    assert ctx.paper.opened == 0
+
+
+@pytest.mark.asyncio
+async def test_corroborating_sources_still_enter():
+    settings = Settings(
+        spot_exchange_list=["kraken"], perp_exchange_list=["krakenfutures"],
+        min_net_profit_usd=Decimal("0.01"), min_funding_history=10,
+    )
+    ctx = _ctx(settings)
+    ctx.screener_means = {"krakenfutures:BTC/USD:USD": Decimal("0.0009")}
+    r = _rate("krakenfutures", "BTC/USD:USD")
+    assert await handle_funding_candidate(ctx, r, time.monotonic_ns()) is not None
