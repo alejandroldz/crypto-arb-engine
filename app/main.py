@@ -33,6 +33,7 @@ from app.connectors.ccxt_manager import (
     FUNDING_TOPIC,
     BookFeed,
     FundingPoller,
+    fetch_unified_account_health,
 )
 from app.connectors.normalizer import FundingRate, L2OrderBook
 from app.core.circuit_breaker import CircuitBreaker
@@ -143,6 +144,7 @@ async def run() -> None:
         else None
     )
     last_mmr: Decimal | None = None
+    last_health_check = 0.0
     spot_key_default = f"{spot_ex}:{spot_symbols[0]}"
 
     # --- restart recovery: rebuild open carries from SQLite ---
@@ -290,6 +292,26 @@ async def run() -> None:
                     f"rate {opp.funding_rate} projected {opp.projected_net} USD"
                 )
 
+            # real account health (read-only keys); simulated UTA is the fallback
+            if settings.krakenfutures_api_key and time.monotonic() - last_health_check > 60:
+                last_health_check = time.monotonic()
+                try:
+                    health = await fetch_unified_account_health(
+                        "krakenfutures",
+                        settings.krakenfutures_api_key,
+                        settings.krakenfutures_api_secret,
+                    )
+                except Exception as exc:
+                    health = None
+                    logger.warning("account health fetch failed: %s", exc)
+                if health is not None:
+                    logger.info(
+                        "real account health %s: equity %s mmr %s",
+                        health.exchange, health.total_equity, health.account_mmr,
+                    )
+                    if health.account_mmr >= D(settings.max_account_mmr_emergency_unwind):
+                        logger.warning("REAL account MMR %s >= emergency", health.account_mmr)
+                        await notifier.send(f"REAL MMR EMERGENCY: {health.account_mmr}")
             for key, carry in list(open_carries.items()):
                 decision = evaluate_carry(
                     qty_base=carry.fill.qty_base,
