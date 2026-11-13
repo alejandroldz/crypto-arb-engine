@@ -136,3 +136,46 @@ async def test_kraken_volume_prefers_volume_quote(monkeypatch):
     by_base = {m.base: m for m in metrics}
     assert by_base["ETH"].volume_24h_usd == pytest.approx(2_500_000)
     assert by_base["SOL"].volume_24h_usd == pytest.approx(2000 * 150)
+
+
+def test_f45_dict_items_filters_wrong_shapes():
+    assert screener_io._dict_items(["not", "a", "dict"], "data") == []
+    assert screener_io._dict_items({"data": "nope"}, "data") == []
+    assert screener_io._dict_items({"data": [{"a": 1}, "junk", 42, {"b": 2}]},
+                                   "data") == [{"a": 1}, {"b": 2}]
+    assert screener_io._dict_items({}, "data") == []
+
+
+@pytest.mark.asyncio
+async def test_f45_okx_corrupt_item_does_not_kill_sweep(monkeypatch):
+    """One instrument without instId (or a non-dict) must be skipped, not
+    kill the OKX sweep (and with it the Kraken fetch that never ran)."""
+    instruments = [
+        "garbage",
+        {"ruleType": "xperp", "state": "live"},  # no instId
+        {"instId": "BTC-USD-310404", "ruleType": "xperp", "state": "live",
+         "ctVal": "0.0001"},
+    ]
+    tickers = {"BTC-USD-310404": {"instId": "BTC-USD-310404",
+                                  "volCcy24h": "100", "last": "50000"}}
+
+    class S:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        def get(self, url, params=None):
+            if "instruments" in url:
+                return _Resp({"data": instruments})
+            if "tickers" in url:
+                return _Resp({"data": list(tickers.values())})
+            if "funding-rate-history" in url:
+                return _Resp({"data": [{"fundingRate": "0.0001"}]})
+            raise AssertionError(url)
+
+    monkeypatch.setattr(screener_io.aiohttp, "ClientSession", lambda: S())
+    (m,) = await screener_io.fetch_okx_xperp_metrics()
+    assert m.base == "BTC"
+    assert m.funding_mean == pytest.approx(0.0001)

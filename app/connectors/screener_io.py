@@ -41,6 +41,19 @@ def _okx_unified(inst_id: str) -> tuple[str, str] | None:
     return base, f"{base}/USD:USD-{expiry}"
 
 
+
+
+def _dict_items(payload, key: str) -> list[dict]:
+    """F45: venues can answer with the right HTTP status and a wrong-shaped
+    body (list instead of object, items without instId). One corrupt item
+    must be skipped, not kill the whole sweep."""
+    if not isinstance(payload, dict):
+        return []
+    data = payload.get(key, [])
+    if not isinstance(data, list):
+        return []
+    return [d for d in data if isinstance(d, dict)]
+
 async def fetch_okx_xperp_metrics(history_limit: int = 100,
                                   min_volume_usd: float = 0.0,
                                   bases: set[str] | None = None) -> list[RawPerpMetrics]:
@@ -52,24 +65,25 @@ async def fetch_okx_xperp_metrics(history_limit: int = 100,
             if r.status != 200:
                 logger.error("okx instruments HTTP %s - venue skipped this sweep", r.status)
                 return out
-            instruments = (await r.json()).get("data", [])
+            instruments = _dict_items(await r.json(), "data")
         async with sess.get(
             f"{OKX_HOST}/api/v5/market/tickers", params={"instType": "FUTURES"}
         ) as r:
             if r.status != 200:
                 logger.error("okx tickers HTTP %s - venue skipped this sweep", r.status)
                 return out
-            tickers = {t["instId"]: t for t in (await r.json()).get("data", [])}
+            tickers = {t["instId"]: t for t in _dict_items(await r.json(), "data")
+                       if "instId" in t}
         xperps = [
             i for i in instruments
             if i.get("ruleType") == "xperp" and i.get("state") == "live"
         ]
         for inst in xperps:
-            parsed = _okx_unified(inst["instId"])
+            parsed = _okx_unified(str(inst.get("instId", "")))
             if parsed is None:
                 continue
             base, symbol = parsed
-            tick = tickers.get(inst["instId"], {})
+            tick = tickers.get(str(inst.get("instId", "")), {})
             # dif D1: OKX vol24h is in CONTRACTS (ctVal base units each),
             # NOT USD. USD volume = volCcy24h * last (fallback vol24h*ctVal*last).
             try:
@@ -89,8 +103,9 @@ async def fetch_okx_xperp_metrics(history_limit: int = 100,
                     f"{OKX_HOST}/api/v5/public/funding-rate-history",
                     params={"instId": inst["instId"], "limit": str(history_limit)},
                 ) as r:
-                    hist = (await r.json()).get("data", [])
-                rates = [float(h["fundingRate"]) for h in hist]
+                    hist = _dict_items(await r.json(), "data")
+                rates = [float(h["fundingRate"]) for h in hist
+                         if "fundingRate" in h]
                 if rates:
                     mean = statistics.fmean(rates)
                     pct_pos = sum(1 for x in rates if x > 0) / len(rates)
@@ -125,7 +140,7 @@ async def fetch_krakenfutures_metrics(history_limit: int = 720,
             if r.status != 200:
                 logger.error("kraken tickers HTTP %s - venue skipped this sweep", r.status)
                 return out
-            tickers = (await r.json()).get("tickers", [])
+            tickers = _dict_items(await r.json(), "tickers")
         for t in tickers:
             parsed = _kraken_unified(t.get("symbol", ""))
             if parsed is None:
@@ -152,9 +167,10 @@ async def fetch_krakenfutures_metrics(history_limit: int = 720,
                     # v4 returns the FULL history ascending: take the LATEST
                     # window, not the oldest (a year-old mean quarantined ETH
                     # against the live polled mean)
-                    hist = (await r.json()).get("rates", [])[-history_limit:]
+                    hist = _dict_items(await r.json(), "rates")[-history_limit:]
                 # relativeFundingRate is the rate; fundingRate is absolute USD
-                rates = [float(h["relativeFundingRate"]) for h in hist]
+                rates = [float(h["relativeFundingRate"]) for h in hist
+                         if "relativeFundingRate" in h]
                 if rates:
                     mean = statistics.fmean(rates)
                     pct_pos = sum(1 for x in rates if x > 0) / len(rates)
