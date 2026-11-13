@@ -161,3 +161,22 @@ def test_f22_normalization_error_is_single_domain_exception():
     for raw in ({"fundingRate": ".."}, {"fundingRate": None, "nextFundingRate": "x"}):
         with pytest.raises(NormalizationError):
             normalize_funding("okx", "X/USD", raw)
+
+
+def test_h8_book_levels_truncated_not_fatal():
+    from app.connectors.ccxt_manager import MAX_BOOK_LEVELS, normalize_book
+    raw = {
+        "bids": [[str(100 - i * 0.01), "1"] for i in range(MAX_BOOK_LEVELS + 500)],
+        "asks": [[str(101 + i * 0.01), "1"] for i in range(MAX_BOOK_LEVELS + 500)],
+    }
+    book = normalize_book("okx", "X/USD", raw)
+    assert len(book.bids) == MAX_BOOK_LEVELS and len(book.asks) == MAX_BOOK_LEVELS
+    assert book.bids[0].price == 100  # top of book preserved
+
+
+def test_c6_empty_string_account_fields_are_zero():
+    from app.connectors.ccxt_manager import _dec_or_zero
+    from decimal import Decimal
+    assert _dec_or_zero("") == Decimal("0")
+    assert _dec_or_zero(None) == Decimal("0")
+    assert _dec_or_zero("12.5") == Decimal("12.5")

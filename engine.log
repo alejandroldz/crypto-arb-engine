@@ -994,3 +994,17 @@ _duckdb.ResourceInUseException: Resource In Use Error: connection is busy with a
 2026-11-13 22:49:43,524 main WARNING funding source mismatch okx:SOL/USD:USD-310404: screener mean 0.000089010610287757 vs polled mean 0.00002965375540365131578947368421 - entries quarantined
 2026-11-13 22:49:59,713 main INFO real account health krakenfutures: equity 0 mmr 0
 2026-11-13 22:49:59,713 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 22:50:00,400 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 22:50:00,400 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 22:50:03,960 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007119110904721193 vs polled mean -0.0000028478809150892109375 - entries quarantined
+2026-11-13 22:50:03,960 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007119110904721193 vs polled mean -0.0000028478809150892109375 - entries quarantined
+2026-11-13 22:50:14,219 main WARNING funding source mismatch okx:SOL/USD:USD-310404: screener mean 0.000089010610287757 vs polled mean 0.00002965375540365131578947368421 - entries quarantined
+2026-11-13 22:50:14,219 main WARNING funding source mismatch okx:SOL/USD:USD-310404: screener mean 0.000089010610287757 vs polled mean 0.00002965375540365131578947368421 - entries quarantined
+2026-11-13 22:50:34,675 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007119110904721193 vs polled mean -0.000002829315191126558139534883721 - entries quarantined
+2026-11-13 22:50:34,675 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007119110904721193 vs polled mean -0.000002829315191126558139534883721 - entries quarantined
+2026-11-13 22:50:44,332 main WARNING funding source mismatch okx:SOL/USD:USD-310404: screener mean 0.000089010610287757 vs polled mean 0.00002965679830207532467532467532 - entries quarantined
+2026-11-13 22:50:44,332 main WARNING funding source mismatch okx:SOL/USD:USD-310404: screener mean 0.000089010610287757 vs polled mean 0.00002965679830207532467532467532 - entries quarantined
+2026-11-13 22:51:00,066 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 22:51:00,066 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 22:51:00,729 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 22:51:00,729 main INFO real account health okx: equity 0 mmr 0

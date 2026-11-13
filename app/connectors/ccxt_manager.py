@@ -75,6 +75,18 @@ def _contract_base_qty(qty, price, market: dict | None) -> str:
     return str(q * cs / p)  # inverse: contract worth `cs` quote units
 
 
+#: caos H8: cap levels per side (real L2 feeds stay far below this)
+MAX_BOOK_LEVELS = 1000
+
+
+def _dec_or_zero(v: object) -> Decimal:
+    """caos C6: OKX/Bybit return "" for empty account fields. "" and None
+    are zero; anything else must parse."""
+    if v is None or v == "":
+        return Decimal("0")
+    return Decimal(str(v))
+
+
 class NormalizationError(ValueError):
     """fuzz F22: every hostile-payload failure from normalize_* is ONE
     domain exception. Fail-closed: the feed drops the snapshot, and any
@@ -100,8 +112,16 @@ def _normalize_book(
     exchange_id: str, symbol: str, raw: dict, market: dict | None = None
 ) -> L2OrderBook:
     ts_ms = raw.get("timestamp")
-    bids_raw = raw["bids"]
-    asks_raw = raw["asks"]
+    bids_raw = raw["bids"][:MAX_BOOK_LEVELS]
+    asks_raw = raw["asks"][:MAX_BOOK_LEVELS]
+    if len(raw["bids"]) > MAX_BOOK_LEVELS or len(raw["asks"]) > MAX_BOOK_LEVELS:
+        # caos H8: a 100k-level payload stalls the feed thread and spikes
+        # RSS. The top of book is what sizing uses; truncating the tail
+        # understates depth, which is the conservative direction.
+        logger.warning(
+            "book %s:%s truncated to %d levels/side (payload too deep)",
+            exchange_id, symbol, MAX_BOOK_LEVELS,
+        )
     # F07: a crossed/locked book makes the maker branch fill ANY size at
     # fantasy prices (price "touched" == full fill). Reject the snapshot;
     # the feed retries with the next one.
@@ -384,15 +404,15 @@ async def fetch_unified_account_health(
     try:
         if exchange_id == "okx":
             # v5 unified account: totalEq/adjEq; mgnRatio = adjEq/MM (OKX
-            # inverts the spec's MMR). Empty account: mgnRatio is "".
+            # inverts the spec's MMR). Empty account: fields are "".
             r = await ex.private_get_account_balance()
             data = (r.get("data") or [{}])[0]
-            adj_eq = Decimal(str(data.get("adjEq") or "0"))
-            mgn_ratio = Decimal(str(data.get("mgnRatio") or "0"))
+            adj_eq = _dec_or_zero(data.get("adjEq"))
+            mgn_ratio = _dec_or_zero(data.get("mgnRatio"))
             mm = adj_eq / mgn_ratio if mgn_ratio > 0 else Decimal("0")
             return AccountHealth(
                 exchange=exchange_id,
-                total_equity=Decimal(str(data.get("totalEq", "0"))),
+                total_equity=_dec_or_zero(data.get("totalEq")),  # caos C6
                 total_margin_balance=adj_eq,
                 total_maintenance_margin=mm,
             )
@@ -402,9 +422,9 @@ async def fetch_unified_account_health(
             res = r.get("result") or {}
             return AccountHealth(
                 exchange=exchange_id,
-                total_equity=Decimal(str(res.get("totalEquity", "0"))),
-                total_margin_balance=Decimal(str(res.get("totalMarginBalance", "0"))),
-                total_maintenance_margin=Decimal(str(res.get("totalMaintenanceMargin", "0"))),
+                total_equity=_dec_or_zero(res.get("totalEquity")),
+                total_margin_balance=_dec_or_zero(res.get("totalMarginBalance")),
+                total_maintenance_margin=_dec_or_zero(res.get("totalMaintenanceMargin")),
             )
         if exchange_id == "krakenfutures":
             r = await ex.private_get_accounts()
