@@ -462,6 +462,15 @@ async def run() -> None:
     pp_realized = [ZERO]
     pp_ctx: PpContext | None = None
     if settings.perp_perp_enabled:
+        def pp_entry_allowed(key: str) -> bool:
+            # audit #3: PP shares the entry universe with carry (eligible
+            # set + blacklist), it does not pick from raw config alone
+            if key in settings.screener_blacklist_keys:
+                return False
+            if carry_ctx.eligible is not None and key not in carry_ctx.eligible:
+                return False
+            return True
+
         def pp_budget() -> Decimal:
             total = (
                 D(uta_state.notional)
@@ -499,6 +508,7 @@ async def run() -> None:
             open={},
             budget_remaining=pp_budget,
             realized_pnl=pp_realized,
+            entry_allowed=pp_entry_allowed,
         )
         carry_ctx.external_allocated = lambda: sum(
             D(pos.opp.notional) for pos in pp_ctx.open.values()
@@ -552,6 +562,10 @@ async def run() -> None:
         for c in open_carries.values():  # never unsubscribe an open carry
             keys.add(c.perp_key)
             keys.add(c.spot_key)
+        if pp_ctx is not None:  # audit #3: never unsubscribe an open PP pair
+            for pos in pp_ctx.open.values():
+                keys.add(pos.long_key)
+                keys.add(pos.short_key)
         for base in scr.eligible_bases(eligible):
             sym = settings.spot_symbol_for_base(base) or f"{base}/USD"
             keys.add(f"{spot_ex}:{sym}")

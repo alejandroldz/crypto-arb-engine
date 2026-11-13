@@ -184,6 +184,9 @@ class _Breaker:
     def record_failure(self):
         pass
 
+    def record_success(self):
+        pass
+
     def record_pnl_usd(self, pnl):
         self.last_pnl = pnl
 
@@ -354,3 +357,52 @@ async def test_pp_unwind_deferred_on_stale_books(tmp_path):
     await pp_manage(ctx)
     assert "BTC:krakenfutures->okx" in ctx.open
     assert await repo.open_positions() != []
+
+
+async def _openable_ctx(tmp_path, db_name="t.sqlite", **ctx_kw):
+    """A context where _try_open has every precondition to open BTC."""
+    repo = Repository(f"sqlite+aiosqlite:///{tmp_path}/{db_name}")
+    await repo.init()
+    t = trader(repo)
+    settings = _settings()
+    ctx = PpContext(
+        settings=settings, paper=t, repo=repo, ticks=None,
+        books={f"{LONG[0]}:{LONG[1]}": book(*LONG, 99.9, 100.0),
+               f"{SHORT[0]}:{SHORT[1]}": book(*SHORT, 100.1, 100.2)},
+        funding={}, breaker=_Breaker(), notifier=_Notifier(),
+        open={}, budget_remaining=lambda: D("2000"), realized_pnl=[ZERO],
+        **ctx_kw,
+    )
+
+    class _Ticks:
+        def funding_history(self, ex, sym):
+            return [D("0.0005")] * 40 if ex == "okx" else [D("0.00005")] * 40
+
+    ctx.ticks = _Ticks()
+    return ctx, repo
+
+
+async def _fund_evt():
+    return FundingRate(exchange="okx", symbol=SHORT[1], rate=D("0.0005"),
+                       local_ts_ns=time.monotonic_ns())
+
+
+async def test_pp_entry_allowed_permissive_opens(tmp_path):
+    # control: with the default permissive policy the pair opens
+    ctx, repo = await _openable_ctx(tmp_path)
+    await pp_handle_funding(ctx, await _fund_evt())
+    assert ctx.open != {}
+
+
+async def test_pp_entries_respect_eligibility_blacklist(tmp_path):
+    # audit #3: a blacklisted or de-eligible pair must NOT open even with
+    # fresh cached books and a valid signal
+    ctx, repo = await _openable_ctx(
+        tmp_path, entry_allowed=lambda key: key != f"{SHORT[0]}:{SHORT[1]}")
+    await pp_handle_funding(ctx, await _fund_evt())
+    assert ctx.open == {}
+    assert await repo.open_positions() == []
+    ctx2, repo2 = await _openable_ctx(
+        tmp_path, "t2.sqlite", entry_allowed=lambda key: False)
+    await pp_handle_funding(ctx2, await _fund_evt())
+    assert ctx2.open == {}

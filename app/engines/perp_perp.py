@@ -375,6 +375,10 @@ class PpContext:
     open: dict[str, PpPosition]
     budget_remaining: Callable[[], Decimal]  # portfolio budget after carries
     realized_pnl: list  # [Decimal] mutable accumulator owned by run()
+    # audit #3: PP entries share carry's eligibility/blacklist policy
+    # (main wires the strict one; the permissive default only exists so
+    # isolated unit tests build contexts without the screener)
+    entry_allowed: Callable[[str], bool] = lambda key: True
 
 
 def _common_bases(settings) -> list[str]:
@@ -419,6 +423,11 @@ async def _try_open(ctx: PpContext, base: str) -> None:
             if not short_sym or not long_sym:
                 continue
             long_key, short_key = f"{long_ex}:{long_sym}", f"{short_ex}:{short_sym}"
+            # audit #3: entries respect shared eligibility + blacklist;
+            # excluded pairs are never opened, no matter how cached the
+            # books look
+            if not (ctx.entry_allowed(long_key) and ctx.entry_allowed(short_key)):
+                continue
             if long_key not in ctx.books or short_key not in ctx.books:
                 continue
             # F12: both legs must be FRESH - history never substitutes a
