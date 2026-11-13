@@ -144,7 +144,8 @@ class AccountHealth:
     @property
     def account_mmr(self) -> Decimal:
         if self.total_margin_balance <= 0:
-            return Decimal("1")
+            # empty account: no positions, no risk - not an emergency
+            return Decimal("1") if self.total_equity < 0 else Decimal("0")
         return self.total_maintenance_margin / self.total_margin_balance
 
 
