@@ -1,19 +1,33 @@
-"""RISK 1: atomic leg coordinator and panic unwind."""
+"""RISK 1: atomic leg coordinator, partial fills and panic unwind."""
 import asyncio
-from decimal import Decimal
 
 import pytest
 
 from app.core.decimals import D
 from app.engines.execution import (
     AtomicLegCoordinator,
+    ExecutionResult,
     LegOrder,
     LegState,
     LiveTradingDisabledError,
 )
 
-LEG1 = LegOrder(exchange="kraken", symbol="BTC/EUR", side="buy", qty_base=D("0.1"), limit_price=D("50000"))
-LEG2 = LegOrder(exchange="bybit", symbol="BTC/USDT:USDT", side="sell", qty_base=D("0.1"), limit_price=D("50010"))
+LEG1 = LegOrder(exchange="kraken", symbol="BTC/USD", side="buy", qty_base=D("0.1"), limit_price=D("50000"))
+LEG2 = LegOrder(exchange="krakenfutures", symbol="BTC/USD:USD", side="sell", qty_base=D("0.1"), limit_price=D("50010"))
+
+
+def make(place_ioc, place_market=None, reconcile=None, delay_ms=100):
+    return AtomicLegCoordinator(
+        live_trading_enabled=True,
+        place_ioc=place_ioc,
+        place_market=place_market or (lambda *a: _ret(D("0"))),
+        max_leg_delay_ms=delay_ms,
+        reconcile_fills=reconcile,
+    )
+
+
+async def _ret(value):
+    return value
 
 
 def test_refuses_when_live_trading_disabled():
@@ -27,68 +41,122 @@ def test_refuses_when_live_trading_disabled():
 
 
 async def test_happy_path_hedged():
-    coord = AtomicLegCoordinator(
-        live_trading_enabled=True,
-        place_ioc=lambda leg: asyncio.coroutine(lambda: D("0.1"))() if False else _ret(D("0.1")),
-        place_market=_ret(D("49900")),
-        max_leg_delay_ms=1500,
-    )
-    assert await coord.execute(LEG1, LEG2) == LegState.HEDGED
+    coord = make(lambda leg: _ret(D("0.1")))
+    r = await coord.execute(LEG1, LEG2)
+    assert r.state == LegState.HEDGED
+    assert r.filled_leg1 == D("0.1") and r.filled_leg2 == D("0.1")
 
 
-async def _ret(value):
-    return value
-
-
-async def test_leg1_no_fill_stays_pending():
-    calls = []
+async def test_leg1_no_fill_stays_pending_and_leg2_never_sent():
+    sent = []
 
     async def ioc(leg):
-        calls.append(leg)
+        sent.append(leg)
         return D("0")
 
-    coord = AtomicLegCoordinator(
-        live_trading_enabled=True, place_ioc=ioc, place_market=_ret(D("0")),
-        max_leg_delay_ms=1500,
-    )
-    assert await coord.execute(LEG1, LEG2) == LegState.PENDING
-    assert len(calls) == 1  # leg 2 never attempted
+    r = await make(ioc).execute(LEG1, LEG2)
+    assert r.state == LegState.PENDING
+    assert len(sent) == 1
 
 
-async def test_leg2_failure_triggers_market_unwind():
+async def test_leg1_partial_fill_sizes_leg2_to_actual():
+    sent = []
+
+    async def ioc(leg):
+        sent.append(leg)
+        return D("0.06")  # partial fill on leg1; leg2 fills fully
+
+    coord = make(ioc)
+    # leg2 must be sized to 0.06, not the requested 0.1
+    r = await coord.execute(LEG1, LEG2)
+    assert r.state == LegState.HEDGED
+    assert sent[1].qty_base == D("0.06")
+    assert r.filled_leg1 == r.filled_leg2 == D("0.06")
+
+
+async def test_leg2_partial_fill_flattens_both_legs():
     unwound = []
 
     async def ioc(leg):
-        return D("0.1") if leg is LEG1 else D("0")
+        return D("0.1") if leg is LEG1 else D("0.04")  # leg2 partial
 
     async def market(exchange, symbol, side, qty):
         unwound.append((exchange, symbol, side, qty))
-        return D("49800")
+        return D("49900")
 
-    coord = AtomicLegCoordinator(
-        live_trading_enabled=True, place_ioc=ioc, place_market=market,
-        max_leg_delay_ms=1500,
-    )
-    assert await coord.execute(LEG1, LEG2) == LegState.UNWOUND
-    assert unwound == [("kraken", "BTC/EUR", "sell", D("0.1"))]
+    r = await make(ioc, market).execute(LEG1, LEG2)
+    assert r.state == LegState.UNWOUND
+    # both fills are closed: net exposure zero
+    assert ("kraken", "BTC/USD", "sell", D("0.1")) in unwound
+    assert ("krakenfutures", "BTC/USD:USD", "buy", D("0.04")) in unwound
+    assert r.unwound_leg1 == D("0.1") and r.unwound_leg2 == D("0.04")
 
 
-async def test_leg2_timeout_triggers_unwind():
+async def test_leg2_venue_failure_caught_and_unwound():
+    unwound = []
+
+    async def ioc(leg):
+        if leg is LEG1:
+            return D("0.1")
+        raise ConnectionError("venue rejected the order")
+
+    async def market(exchange, symbol, side, qty):
+        unwound.append((side, qty))
+        return D("49900")
+
+    async def reconcile(leg):
+        return D("0")  # venue confirms: nothing filled
+
+    r = await make(ioc, market, reconcile).execute(LEG1, LEG2)
+    assert r.state == LegState.UNWOUND
+    assert unwound == [("sell", D("0.1"))]
+
+
+async def test_leg2_timeout_reconciled_partial_fill_unwinds_both():
     unwound = []
 
     async def ioc(leg):
         if leg is LEG1:
             return D("0.1")
         await asyncio.sleep(5)  # hangs past MAX_LEG_DELAY_MS
-        return D("0.1")
+        return D("0")
 
     async def market(exchange, symbol, side, qty):
-        unwound.append(qty)
-        return D("49800")
+        unwound.append((side, qty))
+        return D("49900")
 
-    coord = AtomicLegCoordinator(
-        live_trading_enabled=True, place_ioc=ioc, place_market=market,
-        max_leg_delay_ms=100,
-    )
-    assert await coord.execute(LEG1, LEG2) == LegState.UNWOUND
-    assert unwound == [D("0.1")]
+    async def reconcile(leg):
+        return D("0.03")  # it actually partially filled during the timeout
+
+    r = await make(ioc, market, reconcile, delay_ms=50).execute(LEG1, LEG2)
+    assert r.state == LegState.UNWOUND
+    assert ("sell", D("0.1")) in unwound
+    assert ("buy", D("0.03")) in unwound
+
+
+async def test_leg2_timeout_unknown_outcome_flags_uncertain():
+    async def ioc(leg):
+        if leg is LEG1:
+            return D("0.1")
+        await asyncio.sleep(5)
+        return D("0")
+
+    async def reconcile(leg):
+        return None  # venue cannot say
+
+    r = await make(ioc, reconcile=reconcile, delay_ms=50).execute(LEG1, LEG2)
+    assert r.state == LegState.UNWIND_UNCERTAIN
+    assert "unknown" in r.note
+    assert r.unwound_leg1 == D("0.1")  # leg1 still flattened
+
+
+async def test_unwind_failure_flags_uncertain():
+    async def ioc(leg):
+        return D("0.1") if leg is LEG1 else D("0")
+
+    async def market(exchange, symbol, side, qty):
+        raise ConnectionError("venue down")
+
+    r = await make(ioc, market).execute(LEG1, LEG2)
+    assert r.state == LegState.UNWIND_UNCERTAIN
+    assert "leg1 unwind failed" in r.note

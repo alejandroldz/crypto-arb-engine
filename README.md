@@ -1,7 +1,11 @@
 # crypto-arb-engine
 
 Quantitative crypto arbitrage & delta-neutral funding-rate engine.
-Spain/EU compliant, zero-cost stack, paper trading first.
+Zero-cost stack, paper trading first.
+
+Legal note: nothing here verifies retail eligibility or derivative
+availability for Spain/EU residents. That is the user's responsibility
+(check each venue's terms and your tax obligations) before any live use.
 
 ## Hard rules
 
@@ -34,10 +38,15 @@ payout and break-even holding period are computed deterministically.
 
 Defaults: Kraken spot `BTC/USD` against Kraken Futures `BTC/USD:USD` (and
 Deribit `BTC-PERPETUAL`) - all USD-quoted, so the carry legs are exactly
-delta-neutral with no EUR/USD conversion. All reachable from Spain/EU on
-free public endpoints, verified live from this repo's test runs. Bybit
-geo-blocks some jurisdictions at the CDN level; enable it only after
-confirming reachability from your own IP (`PERP_EXCHANGES`).
+delta-neutral with no EUR/USD conversion.
+
+What was actually verified: public market-data endpoints (order books and
+funding rates) are reachable from the build/test environment without API
+keys for kraken, krakenfutures and deribit. This says nothing about retail
+eligibility, derivative availability or account access from Spain/EU -
+unverified, user's responsibility. Bybit geo-blocks some jurisdictions at
+the CDN level (observed); enable it only after confirming reachability from
+your own IP (`PERP_EXCHANGES`).
 
 ## Quickstart
 
