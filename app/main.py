@@ -716,7 +716,12 @@ async def run() -> None:
         while not stop.is_set():
             now_ns = time.monotonic_ns()
 
-            while not funding_q.empty():
+            # caos H4: entries wait up to maker_timeout (60s) each and the
+            # carry + PP hooks chain per base - without a budget the manage
+            # phase (unwinds, MMR) starves behind entry waits. Cap the
+            # drain at 30s/cycle; leftover rates are handled next cycle.
+            drain_deadline = time.monotonic() + 30
+            while not funding_q.empty() and time.monotonic() < drain_deadline:
                 rate = funding_q.get_nowait()
                 fkey = f"{rate.exchange}:{rate.symbol}"
                 funding[fkey] = rate
@@ -742,6 +747,11 @@ async def run() -> None:
                     except Exception as exc:  # decoupled: never kills the carry loop
                         logger.exception("perp-perp funding hook failed: %s", exc)
                         await notifier.send(f"PP MODULE ERROR (funding hook): {exc}")
+            if not funding_q.empty():
+                logger.warning(
+                    "funding queue drain deferred (%d pending) - manage phase first",
+                    funding_q.qsize(),
+                )
 
             if time.monotonic() - last_tick_flush > 30:
                 last_tick_flush = time.monotonic()
