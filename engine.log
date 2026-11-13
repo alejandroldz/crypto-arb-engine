@@ -611,3 +611,14 @@ _duckdb.ResourceInUseException: Resource In Use Error: connection is busy with a
 2026-11-13 20:15:59,722 main INFO real account health okx: equity 0 mmr 0
 2026-11-13 20:16:58,947 main INFO real account health krakenfutures: equity 0 mmr 0
 2026-11-13 20:16:59,693 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 20:17:19,587 main INFO seeded 19 funding samples from funding_log.csv
+2026-11-13 20:17:21,042 main WARNING kraken spot fees NOT auto-detectable (falta kraken_spot_api_key read-only): usando fallback config 80 bps
+2026-11-13 20:17:21,272 app.engines.fee_oracle INFO fees okx: maker 2.0000 bps, taker 5.0000 bps (api)
+2026-11-13 20:17:21,272 app.engines.fee_oracle INFO fees kraken: config fallback (sin fetcher ni cache)
+2026-11-13 20:17:21,748 app.engines.fee_oracle INFO fees krakenfutures: maker 2.00 bps, taker 5.00 bps (api)
+2026-11-13 20:17:22,457 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 20:17:22,931 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 20:18:22,974 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 20:18:23,652 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 20:44:46,024 ingestion WARNING book feed kraken ETH/USD: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-13 20:44:46,024 ingestion WARNING book feed krakenfutures BTC/USD:USD: NetworkError: Connection closed by remote server, closing code 1006
