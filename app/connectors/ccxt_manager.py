@@ -160,12 +160,16 @@ class BookFeed:
     """
 
     def __init__(self, exchange_id: str, symbols: list[str], rest_backoff_s: int = 2,
-                 markets_list: list | None = None, derivative: bool = True):
+                 markets_list: list | None = None, derivative: bool = True,
+                 watch_timeout_s: int = 30):
         self.exchange_id = exchange_id
         self.symbols = list(symbols)
         self.rest_backoff_s = rest_backoff_s
         self.markets_list = markets_list
         self.derivative = derivative
+        # op.#13: a watch that neither returns nor raises (stuck socket) now
+        # hits this deadline and falls back instead of hanging forever
+        self.watch_timeout_s = watch_timeout_s
         self.last_error: str | None = None
 
     async def run(self, bus: EventBus, stop: asyncio.Event) -> None:
@@ -204,7 +208,9 @@ class BookFeed:
                     if stop.is_set():
                         break
                     try:
-                        raw = await ex.watch_order_book(symbol)
+                        raw = await asyncio.wait_for(
+                            ex.watch_order_book(symbol), timeout=self.watch_timeout_s
+                        )
                         bus.publish(
                             BOOKS_TOPIC,
                             normalize_book(self.exchange_id, symbol, raw, markets.get(symbol)),

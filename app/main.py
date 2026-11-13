@@ -82,18 +82,43 @@ def seed_funding_history(ticks):
     # Seed DuckDB funding history from the CSV log (survives restarts).
     import csv
 
+    def to_utc(ts: str) -> datetime:
+        """op.#16: compare INSTANTS, not strings. Stored ts is UTC-naive
+        (DuckDB TIMESTAMP has no tz); CSV rows carry +00:00."""
+        dt = datetime.fromisoformat(ts)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+
+    epoch = datetime.min.replace(tzinfo=timezone.utc)
+    watermarks = {
+        k: to_utc(str(v)) for k, v in ticks.funding_max_ts_by_series().items() if v
+    }
+    seeded = failed = 0
     try:
-        with open(FUNDING_LOG_CSV, newline="", encoding="utf-8") as fh:
-            rows = list(csv.reader(fh))
+        fh = open(FUNDING_LOG_CSV, newline="", encoding="utf-8")
     except FileNotFoundError:
         return 0
-    seeded = 0
-    max_ts = ticks.funding_max_ts()
-    for exchange, symbol, ts_iso, rate, predicted in rows[1:] if rows else []:
-        if ts_iso <= max_ts:
-            continue  # already in DuckDB
-        ticks.insert_funding_raw(exchange, symbol, ts_iso, rate, predicted or None)
-        seeded += 1
+    with fh:  # op.#16: stream the CSV, never load it whole into RAM
+        reader = csv.reader(fh)
+        next(reader, None)  # header
+        for row in reader:
+            if len(row) < 5:
+                continue
+            exchange, symbol, ts_iso, rate, predicted = row[:5]
+            try:
+                ts = to_utc(ts_iso)
+            except ValueError:
+                failed += 1
+                continue
+            if ts <= watermarks.get((exchange, symbol), epoch):
+                continue  # already in DuckDB (per-series watermark)
+            if ticks.insert_funding_raw(exchange, symbol, ts_iso, rate, predicted or None):
+                seeded += 1
+            else:
+                failed += 1
+    if failed:
+        logger.warning("funding seed: %d rows failed to insert", failed)
     return seeded
 
 
@@ -145,6 +170,10 @@ async def run() -> None:
     day_start = datetime.now(timezone.utc).replace(
         hour=0, minute=0, second=0, microsecond=0)
     breaker.seed_daily_pnl(await repo.realized_pnl_since(day_start))
+    # op.#17: a breaker halt must reach Telegram, not only the log
+    breaker.on_halt = lambda reason: asyncio.create_task(
+        notifier.send(f"CIRCUIT BREAKER HALT: {reason}")
+    )
     gate = StalenessGate(settings.max_data_age_ms_funding)
     paper = PaperTrader(
         repo,
@@ -220,20 +249,59 @@ async def run() -> None:
 
     # Feeds are tracked per symbol so the screener can subscribe/unsubscribe
     # without restarting the engine. Each feed gets its own stop event.
-    feed_tasks: dict[str, tuple[asyncio.Task, asyncio.Event]] = {}
+    feed_tasks: dict[str, tuple[asyncio.Task, asyncio.Event, object]] = {}
+    feed_restart_count: dict[str, int] = {}
 
     def start_feed(name: str, factory) -> None:
         ev = asyncio.Event()
         t = asyncio.create_task(factory(ev))
         tasks.append(t)
-        feed_tasks[name] = (t, ev)
+        feed_tasks[name] = (t, ev, factory)
 
     def stop_feed(name: str) -> None:
-        t, ev = feed_tasks.pop(name)
+        t, ev, _ = feed_tasks.pop(name)
         ev.set()
         t.cancel()
         if t in tasks:
             tasks.remove(t)
+
+    async def feed_watchdog() -> None:
+        """op.#13: supervise feed tasks (restart with backoff + alert) and
+        watch data freshness per feed (a hung feed that never raises is
+        detected by the absence of fresh books, not by its exception)."""
+        outage_alerted: set[str] = set()
+        while not stop.is_set():
+            await asyncio.sleep(30)
+            for name, (t, ev, factory) in list(feed_tasks.items()):
+                if not t.done():
+                    continue
+                exc = t.exception() if not t.cancelled() else None
+                n = feed_restart_count.get(name, 0) + 1
+                feed_restart_count[name] = n
+                backoff = min(60, 2 ** n)
+                logger.error(
+                    "feed %s died (%s); restart #%d in %ss", name, exc, n, backoff
+                )
+                await notifier.send(f"FEED DIED {name}: {exc} - restart #{n}")
+                feed_tasks.pop(name, None)
+                await asyncio.sleep(backoff)
+                if name not in feed_tasks:  # the screener may have cut it
+                    start_feed(name, factory)
+            now_ns = time.monotonic_ns()
+            for name in list(feed_tasks):
+                if not name.startswith("book:"):
+                    continue
+                key = name[len("book:"):]
+                book = books.get(key)
+                stale = book is None or (now_ns - book.local_ts_ns) / 1e9 > 60
+                if stale and key not in outage_alerted:
+                    outage_alerted.add(key)
+                    logger.error("feed OUTAGE %s: no fresh book in 60s", key)
+                    await notifier.send(f"FEED OUTAGE {key}: sin libro fresco en 60s")
+                elif not stale and key in outage_alerted:
+                    outage_alerted.discard(key)
+                    logger.info("feed RECOVERED %s", key)
+                    await notifier.send(f"FEED RECOVERED {key}")
 
     spot_venues = set(settings.spot_exchange_list)
 
@@ -566,6 +634,8 @@ async def run() -> None:
     tasks.append(asyncio.create_task(fee_refresh_loop()))
     # op.#1: the books consumer runs as its own task (see def above)
     tasks.append(asyncio.create_task(books_consumer()))
+    # op.#13: feed supervision + freshness watchdog
+    tasks.append(asyncio.create_task(feed_watchdog()))
 
     async def close_carry(key: str, carry: OpenCarry, reason: str) -> None:
         nonlocal realized_pnl
@@ -646,6 +716,11 @@ async def run() -> None:
                         if health.account_mmr >= D(settings.max_account_mmr_emergency_unwind):
                             logger.warning("REAL account MMR %s >= emergency", health.account_mmr)
                             await notifier.send(f"REAL MMR EMERGENCY: {health.account_mmr}")
+                            # op.#17: a real MMR emergency stops new entries,
+                            # it does not only warn (paper: no real unwind)
+                            breaker.halt(
+                                f"real account MMR emergency: {health.account_mmr}"
+                            )
             for key, carry in list(open_carries.items()):
                 decision = evaluate_carry(
                     qty_base=carry.fill.qty_base,

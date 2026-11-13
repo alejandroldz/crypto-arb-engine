@@ -2,12 +2,15 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timezone
 from decimal import Decimal
 
 import duckdb
 
 from app.core.decimals import D
+
+logger = logging.getLogger(__name__)
 from app.connectors.normalizer import FundingRate, L2OrderBook
 
 
@@ -48,7 +51,7 @@ class TickStore:
         # bound on a 2GB sandbox). Batch via executemany on flush().
         self._book_buf.append(
             [
-                datetime.now(timezone.utc),
+                datetime.now(timezone.utc).replace(tzinfo=None),
                 book.exchange,
                 book.symbol,
                 str(book.best_bid.price),
@@ -63,10 +66,27 @@ class TickStore:
     def flush(self) -> None:
         if not self._book_buf:
             return
-        buf, self._book_buf = self._book_buf, []
-        self._conn.executemany(
-            "INSERT INTO book_snapshots VALUES (?, ?, ?, ?, ?, ?, ?)", buf
-        )
+        try:
+            self._conn.executemany(
+                "INSERT INTO book_snapshots VALUES (?, ?, ?, ?, ?, ?, ?)",
+                self._book_buf,
+            )
+        except Exception:
+            # op.#15: keep the batch for the next retry instead of dropping
+            # it on the floor; cap it so a dead DB cannot grow RAM unbounded
+            logger.exception("book flush failed; batch kept for retry")
+            del self._book_buf[:-5000]
+            return
+        self._book_buf = []
+
+    def funding_max_ts_by_series(self) -> dict:
+        """op.#16: watermark PER SERIES - a global max cannot repair gaps in
+        series whose latest sample is older than another series' max."""
+        rows = self._conn.execute(
+            "SELECT exchange, symbol, max(ts_utc) FROM funding_snapshots "
+            "GROUP BY 1, 2"
+        ).fetchall()
+        return {(r[0], r[1]): r[2] for r in rows}
 
     def funding_max_ts(self):
         row = self._conn.execute(
@@ -77,14 +97,23 @@ class TickStore:
     def insert_funding_raw(
         self, exchange: str, symbol: str, ts_iso: str, rate: str, predicted
     ) -> None:
-        # Direct insert for seeding from the CSV log (deduped by unique row).
+        # Direct insert for seeding from the CSV log. op.#16: failures are
+        # REPORTED, not swallowed as if they were duplicates.
         try:
+            ts = datetime.fromisoformat(ts_iso)
+            if ts.tzinfo is not None:
+                ts = ts.astimezone(timezone.utc).replace(tzinfo=None)
             self._conn.execute(
                 "INSERT INTO funding_snapshots VALUES (?, ?, ?, ?, ?, ?)",
-                [ts_iso, exchange, symbol, rate, predicted, None],
+                [ts, exchange, symbol, rate, predicted, None],
             )
-        except Exception:
-            pass  # duplicate sample already seeded
+        except Exception as exc:
+            logger.warning(
+                "funding seed insert failed %s %s %s: %s",
+                exchange, symbol, ts_iso, exc,
+            )
+            return False
+        return True
 
     @staticmethod
     def _naive(dt):
@@ -113,7 +142,7 @@ class TickStore:
         self._conn.execute(
             "INSERT INTO funding_snapshots VALUES (?, ?, ?, ?, ?, ?)",
             [
-                datetime.now(timezone.utc),
+                datetime.now(timezone.utc).replace(tzinfo=None),
                 rate.exchange,
                 rate.symbol,
                 str(rate.rate),
@@ -141,4 +170,7 @@ class TickStore:
         ).fetchall()
 
     def close(self) -> None:
-        self._conn.close()
+        try:
+            self.flush()  # op.#15: a clean shutdown must not lose the buffer
+        finally:
+            self._conn.close()

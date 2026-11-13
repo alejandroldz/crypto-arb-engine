@@ -53,6 +53,7 @@ class CircuitBreaker:
     halted: bool = False
     halt_reason: str | None = None
     state_path: str | None = None
+    on_halt: object = None  # callable(reason); op.#17: halt must alert
     _consecutive_failures: int = 0
     _daily_pnl_usd: Decimal = Decimal("0")
     _mtm_usd: Decimal = Decimal("0")
@@ -120,10 +121,21 @@ class CircuitBreaker:
             self._halt("daily loss limit exceeded (realized + MTM)")
 
     def _halt(self, reason: str) -> None:
+        if self.halted and self.halt_reason == reason:
+            return  # do not re-alert the same halt every cycle
         self.halted = True
         self.halt_reason = reason
         logger.warning("CIRCUIT BREAKER HALT: %s", reason)
         self._persist()
+        if self.on_halt is not None:
+            try:
+                self.on_halt(reason)
+            except Exception:
+                logger.exception("on_halt callback failed")
+
+    def halt(self, reason: str) -> None:
+        """Public operator/policy halt (op.#17: e.g. real MMR emergency)."""
+        self._halt(reason)
 
     def record_order(self) -> bool:
         """Register an order attempt; returns False and halts over the limit."""
