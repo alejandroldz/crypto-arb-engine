@@ -6652,3 +6652,33 @@ _duckdb.ResourceInUseException: Resource In Use Error: connection is busy with a
 2026-11-13 23:08:42,898 main INFO real account health okx: equity 0 mmr 0
 2026-11-13 23:08:55,133 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007091634104952674 vs polled mean -0.000002804778311656736526946107784 - entries quarantined
 2026-11-13 23:08:55,133 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007091634104952674 vs polled mean -0.000002804778311656736526946107784 - entries quarantined
+2026-11-13 23:09:25,892 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007091634104952674 vs polled mean -0.000002817814952228446428571428571 - entries quarantined
+2026-11-13 23:09:25,892 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007091634104952674 vs polled mean -0.000002817814952228446428571428571 - entries quarantined
+2026-11-13 23:13:19,534 ingestion WARNING book feed krakenfutures ETH/USD:USD: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-13 23:13:19,534 ingestion WARNING book feed krakenfutures ETH/USD:USD: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-13 23:13:19,534 ingestion WARNING book feed krakenfutures BTC/USD:USD: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-13 23:13:19,534 ingestion WARNING book feed krakenfutures BTC/USD:USD: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-13 23:13:23,029 ingestion WARNING book feed kraken ETH/USD: RequestTimeout: Connection to wss://ws.kraken.com/v2 timed out due to a ping-pong keepalive missing on time
+2026-11-13 23:13:23,029 ingestion WARNING book feed kraken ETH/USD: RequestTimeout: Connection to wss://ws.kraken.com/v2 timed out due to a ping-pong keepalive missing on time
+2026-11-13 23:13:23,029 ingestion WARNING book feed kraken SOL/USD: RequestTimeout: Connection to wss://ws.kraken.com/v2 timed out due to a ping-pong keepalive missing on time
+2026-11-13 23:13:23,029 ingestion WARNING book feed kraken SOL/USD: RequestTimeout: Connection to wss://ws.kraken.com/v2 timed out due to a ping-pong keepalive missing on time
+2026-11-13 23:13:23,029 ingestion WARNING book feed kraken BTC/USD: RequestTimeout: Connection to wss://ws.kraken.com/v2 timed out due to a ping-pong keepalive missing on time
+2026-11-13 23:13:23,029 ingestion WARNING book feed kraken BTC/USD: RequestTimeout: Connection to wss://ws.kraken.com/v2 timed out due to a ping-pong keepalive missing on time
+2026-11-13 23:13:29,881 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 23:13:29,881 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 23:13:30,619 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 23:13:30,619 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 23:13:34,186 ingestion WARNING book feed okx SOL/USD:USD-310404: RequestTimeout: Connection to wss://ws.okx.com:443/ws/v5/public timed out due to a ping-pong keepalive missing on time
+2026-11-13 23:13:34,186 ingestion WARNING book feed okx SOL/USD:USD-310404: RequestTimeout: Connection to wss://ws.okx.com:443/ws/v5/public timed out due to a ping-pong keepalive missing on time
+2026-11-13 23:13:34,187 ingestion WARNING book feed okx BTC/USD:USD-310404: RequestTimeout: Connection to wss://ws.okx.com:443/ws/v5/public timed out due to a ping-pong keepalive missing on time
+2026-11-13 23:13:34,187 ingestion WARNING book feed okx BTC/USD:USD-310404: RequestTimeout: Connection to wss://ws.okx.com:443/ws/v5/public timed out due to a ping-pong keepalive missing on time
+2026-11-13 23:13:34,187 ingestion WARNING book feed okx ETH/USD:USD-310404: RequestTimeout: Connection to wss://ws.okx.com:443/ws/v5/public timed out due to a ping-pong keepalive missing on time
+2026-11-13 23:13:34,187 ingestion WARNING book feed okx ETH/USD:USD-310404: RequestTimeout: Connection to wss://ws.okx.com:443/ws/v5/public timed out due to a ping-pong keepalive missing on time
+2026-11-13 23:13:44,344 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007091634104952674 vs polled mean -0.000002830733006535402366863905325 - entries quarantined
+2026-11-13 23:13:44,344 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007091634104952674 vs polled mean -0.000002830733006535402366863905325 - entries quarantined
+2026-11-13 23:14:15,253 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007091634104952674 vs polled mean -0.000002843478982977005882352941176 - entries quarantined
+2026-11-13 23:14:15,253 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007091634104952674 vs polled mean -0.000002843478982977005882352941176 - entries quarantined
+2026-11-13 23:14:29,920 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 23:14:29,920 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 23:14:30,596 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 23:14:30,596 main INFO real account health okx: equity 0 mmr 0

@@ -197,3 +197,27 @@ def test_heartbeat_format():
         f"breaker={'HALT' if False else 'ok'}"
     )
     assert msg == "ENGINE OK: 2 carries, 0 pares PP, 2 feeds, breaker=ok"
+
+
+def test_f43_seed_compaction_failure_does_not_kill_boot(tmp_path):
+    """F43: a read-only directory makes compaction fail; seeding must still
+    succeed and return its count."""
+    import app.main as m
+
+    ro = tmp_path / "ro"
+    ro.mkdir()
+    csv_path = ro / "funding_log.csv"
+    csv_path.write_text(
+        "exchange,symbol,ts,rate,predicted\n"
+        "okx,BTC/USD:USD,2026-11-13T16:00:00+00:00,0.0005,\n"
+    )
+    ro.chmod(0o555)
+    monkey = pytest.MonkeyPatch()
+    monkey.setattr(m, "FUNDING_LOG_CSV", str(csv_path))
+    store = TickStore(str(tmp_path / "t.duckdb"))
+    try:
+        assert m.seed_funding_history(store) == 1  # no PermissionError
+    finally:
+        ro.chmod(0o755)
+        monkey.undo()
+    assert len(store.funding_history("okx", "BTC/USD:USD")) == 1

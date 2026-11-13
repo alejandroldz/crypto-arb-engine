@@ -141,3 +141,24 @@ def test_f42_validator_fails_loud_on_nan():
             spot_taker_fee_bps=Decimal("5"), perp_taker_fee_bps=Decimal("5"),
             slippage_buffer_bps=Decimal("5"),
         )
+
+
+def test_f24_funding_log_survives_corrupt_csv(tmp_path, monkeypatch):
+    import front.data as fd
+
+    bad = tmp_path / "funding_log.csv"
+    bad.write_text("exchange,symbol\nokx,BTC/USD:USD\n\x00\x01garbage")
+    monkeypatch.setattr(fd, "FUNDING_CSV", bad)
+    df = fd.funding_log()
+    assert list(df.columns) == ["exchange", "symbol", "ts", "rate",
+                                "predicted_rate"]
+    assert df.empty
+
+
+def test_f24_positions_survives_corrupt_sqlite(tmp_path, monkeypatch):
+    import front.data as fd
+
+    bad = tmp_path / "arb_state.db"
+    bad.write_bytes(b"not a sqlite database at all" * 100)
+    monkeypatch.setattr(fd, "SQLITE_PATH", bad)
+    assert fd.positions().empty

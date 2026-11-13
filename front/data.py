@@ -26,9 +26,15 @@ ACTIVE_VENUES = ("kraken", "krakenfutures", "okx")
 
 def funding_log() -> pd.DataFrame:
     """All funding snapshots from the CSV log (survives engine restarts)."""
+    cols = ["exchange", "symbol", "ts", "rate", "predicted_rate"]
     if not FUNDING_CSV.exists():
-        return pd.DataFrame(columns=["exchange", "symbol", "ts", "rate", "predicted_rate"])
-    df = pd.read_csv(FUNDING_CSV)
+        return pd.DataFrame(columns=cols)
+    try:  # F24: a corrupt/truncated CSV must not crash the dashboard
+        df = pd.read_csv(FUNDING_CSV)
+    except Exception:
+        return pd.DataFrame(columns=cols)
+    if any(c not in df.columns for c in cols):
+        return pd.DataFrame(columns=cols)
     df["ts"] = pd.to_datetime(df["ts"], utc=True, errors="coerce")
     df["rate"] = pd.to_numeric(df["rate"], errors="coerce")
     df = df.dropna(subset=["ts"])
@@ -76,7 +82,9 @@ def positions() -> pd.DataFrame:
             """,
             con,
         )
-    except sqlite3.Error:
+    except Exception:
+        # F24: pandas wraps sqlite3.DatabaseError in its own
+        # pandas.errors.DatabaseError, which sqlite3.Error does NOT catch
         return pd.DataFrame()
     finally:
         con.close()

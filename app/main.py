@@ -127,23 +127,31 @@ def seed_funding_history(ticks):
     # caos: the CSV grew unbounded (~300 KB/day). DuckDB is the durable
     # store; the CSV only needs recent rows as a restart seed. Rewrite
     # atomically keeping the last 7 days.
+    # F43: compaction is housekeeping, NOT boot-critical. A read-only dir or
+    # a full disk must degrade to a warning, never kill the engine at boot
+    # (the seed rows are already in DuckDB by this point).
     import os
     import tempfile
 
-    fd, tmp = tempfile.mkstemp(
-        dir=str(Path(FUNDING_LOG_CSV).parent or "."), suffix=".csv.tmp")
     try:
-        with os.fdopen(fd, "w", newline="", encoding="utf-8") as out:
-            w = csv.writer(out)
-            w.writerow(["exchange", "symbol", "ts", "rate", "predicted_rate"])
-            w.writerows(keep)
-        os.replace(tmp, FUNDING_LOG_CSV)
-    except BaseException:
+        fd, tmp = tempfile.mkstemp(
+            dir=str(Path(FUNDING_LOG_CSV).parent or "."), suffix=".csv.tmp")
         try:
-            os.unlink(tmp)
-        except OSError:
-            pass
-        raise
+            with os.fdopen(fd, "w", newline="", encoding="utf-8") as out:
+                w = csv.writer(out)
+                w.writerow(
+                    ["exchange", "symbol", "ts", "rate", "predicted_rate"])
+                w.writerows(keep)
+            os.replace(tmp, FUNDING_LOG_CSV)
+        except BaseException:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
+    except OSError as exc:
+        logger.warning("funding_log compaction skipped (engine continues): %s",
+                       exc)
     return seeded
 
 
