@@ -143,6 +143,9 @@ class PaperTrader:
     ) -> PaperFill | None:
         """Latency simulation, re-validation, then paper fills on both legs."""
         await asyncio.sleep(self.latency_ms / 1000)
+        # screener #7: fee guardrail raised after candidate approval aborts the fill
+        if self.settings is not None and getattr(self.settings, "fees_blocked", False):
+            return None
 
         if self.execution_mode == "maker":
             entries = await self._maker_entries(books_after_latency, D(opp.notional))

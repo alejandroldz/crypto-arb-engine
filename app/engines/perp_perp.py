@@ -173,6 +173,9 @@ class PerpPerpTrader:
         self, opp: PerpPerpOpportunity, books_after_latency: BookSource
     ) -> PerpPerpFill | None:
         await asyncio.sleep(self.latency_ms / 1000)
+        # screener #7: fee guardrail raised after candidate approval aborts the fill
+        if self.settings is not None and getattr(self.settings, "fees_blocked", False):
+            return None
         if self.execution_mode == "maker":
             filled = await self._maker_entries(books_after_latency, D(opp.notional))
             if filled is None:

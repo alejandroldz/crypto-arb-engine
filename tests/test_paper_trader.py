@@ -118,3 +118,20 @@ async def test_add_funding_and_gap_uncertainty_propagate(tmp_path):
     assert len(open_positions) == 1
     assert open_positions[0].funding_collected == D("2.50")
     await repo.close()
+
+
+
+async def test_fill_aborted_when_fee_guardrail_raised_mid_entry(tmp_path):
+    from app.core.config import Settings
+
+    repo = Repository(f"sqlite+aiosqlite:///{tmp_path}/t.sqlite")
+    await repo.init()
+    settings = Settings()
+    settings.fees_blocked.add("okx")  # guardrail fired after candidate approval
+    trader = PaperTrader(repo, latency_ms=0, settings=settings)
+    spot = book([(99.98, 50)], [(100.00, 50), (100.05, 50)])
+    perp = book([(100.02, 50)], [(100.04, 50)])
+    fill = await trader.open_carry(opp(), lambda: (spot, perp))
+    assert fill is None
+    assert await repo.open_positions() == []
+    await repo.close()

@@ -430,3 +430,16 @@ async def test_pp_gap_capped_accrual_flagged_once(tmp_path):
     pos.last_accrual_ns_short = time.monotonic_ns() - 20 * NS_PER_HOUR
     await pp_handle_funding(ctx, evt)  # no second alert for the same episode
     assert len(ctx.notifier.sent) == n
+
+
+async def test_open_pair_aborted_when_fee_guardrail_raised(tmp_path):
+    from app.core.config import Settings
+
+    repo = Repository(f"sqlite+aiosqlite:///{tmp_path}/t.sqlite")
+    await repo.init()
+    settings = Settings()
+    settings.fees_blocked.add("okx")
+    t = trader(repo, maker_fallback="taker", settings=settings)
+    lb, sb = book(*LONG, 99.98, 100.00), book(*SHORT, 100.02, 100.04)
+    assert await t.open_pair(_detect(), lambda: (lb, sb)) is None
+    assert await repo.open_positions() == []
