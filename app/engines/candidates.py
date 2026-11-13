@@ -107,6 +107,33 @@ async def handle_funding_candidate(
     )
     if opp is None:
         return None
+    if ctx.settings.sizing_mode == "kelly":
+        from dataclasses import replace
+
+        from app.engines.sizing import dynamic_notional
+
+        allocated_now = sum(D(c.opp.notional) for c in ctx.open_carries.values())
+        budget = (
+            D(ctx.uta_state.notional) - allocated_now
+            if ctx.uta_state is not None
+            else D(ctx.notional)
+        )
+        sized = dynamic_notional(
+            edge_per_interval=opp.funding_rate,
+            history=history,
+            budget_remaining=budget,
+            kelly_fraction=D(ctx.settings.kelly_fraction),
+            full_score=D(ctx.settings.sizing_full_score),
+            min_notional=D(ctx.settings.sizing_min_notional_usd),
+            max_notional=D(ctx.settings.sizing_max_notional_usd),
+        )
+        if sized <= 0:
+            logger.info("sizing kelly descarta %s %s (size bajo minimo)", rate.exchange, rate.symbol)
+            return None
+        if sized != opp.notional:
+            # payout y costes escalan linealmente con el nocional (fees en bps)
+            scale = sized / D(opp.notional)
+            opp = replace(opp, notional=sized, projected_net=D(opp.projected_net) * scale)
     ctx.opportunities.append(opp)
     print_opportunity(ctx.console, opp)
 
@@ -122,7 +149,7 @@ async def handle_funding_candidate(
         # portfolio budget: total open notional + this carry must fit the
         # utilization cap, or several small carries silently over-deploy
         allocated = sum(D(c.opp.notional) for c in ctx.open_carries.values())
-        if allocated + ctx.notional > ctx.uta_state.notional:
+        if allocated + D(opp.notional) > ctx.uta_state.notional:
             logger.info("UTA budget full, skipping %s", fkey)
             return None
         uta_gate = approve_unified_carry(

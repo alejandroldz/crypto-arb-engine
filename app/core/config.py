@@ -57,6 +57,19 @@ class Settings(BaseSettings):
     maker_timeout_seconds: int = 60
     # que hacer si la limit no se llena a tiempo: "taker" (cruza y paga taker) o "cancel"
     maker_fallback: str = "taker"
+    # sizing dinamico (modulo 3): Kelly reducido con cap duro
+    sizing_mode: str = "fixed"  # "fixed" (baseline) | "kelly" (modulo 3)
+    kelly_fraction: Decimal = Decimal("0.25")
+    sizing_full_score: Decimal = Decimal("0.5")
+    sizing_min_notional_usd: Decimal = Decimal("250")
+    sizing_max_notional_usd: Decimal = Decimal("5000")
+    # perp-perp (modulo 1): arbitraje de funding entre venues, sin pata spot
+    perp_perp_enabled: bool = False  # activado via .env tras validacion
+    pp_min_net_profit_usd: Decimal = Decimal("2")
+    pp_holding_hours: int = 720
+    pp_max_notional_per_venue_usd: Decimal = Decimal("4000")
+    pp_max_notional_per_pair_usd: Decimal = Decimal("2500")
+    pp_min_notional_usd: Decimal = Decimal("250")
     # fee oracle: guardrail - cambio relativo de taker fee que bloquea entradas (%)
     fee_change_block_pct: Decimal = Decimal("20")
     fee_refresh_hours: Decimal = Decimal("4")
