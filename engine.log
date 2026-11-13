@@ -754,3 +754,15 @@ _duckdb.ResourceInUseException: Resource In Use Error: connection is busy with a
 2026-11-13 22:14:51,782 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007131817901248971 vs polled mean -0.000005831566261930017543859649123 - entries quarantined
 2026-11-13 22:15:03,401 main INFO real account health krakenfutures: equity 0 mmr 0
 2026-11-13 22:15:04,093 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 22:15:22,444 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007131817901248971 vs polled mean -0.000005738794400992982758620689655 - entries quarantined
+2026-11-13 22:15:53,739 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007131817901248971 vs polled mean -0.000005649165827454779661016949153 - entries quarantined
+2026-11-13 22:16:03,670 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 22:16:04,372 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 22:16:24,669 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007131817901248971 vs polled mean -0.000005562529252880366666666666667 - entries quarantined
+2026-11-13 22:16:55,464 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007131817901248971 vs polled mean -0.000005478737407235606557377049180 - entries quarantined
+2026-11-13 22:17:03,910 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 22:17:04,541 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 22:17:26,777 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007131817901248971 vs polled mean -0.000005397641932632983870967741935 - entries quarantined
+2026-11-13 22:17:57,736 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007131817901248971 vs polled mean -0.000005319121148451428571428571429 - entries quarantined
+2026-11-13 22:18:04,123 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 22:18:04,844 main INFO real account health okx: equity 0 mmr 0

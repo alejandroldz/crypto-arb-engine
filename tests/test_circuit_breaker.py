@@ -74,8 +74,10 @@ def test_reserve_orders_aborts_atomically_when_window_full():
     b = CircuitBreaker(max_consecutive_failures=3, max_daily_loss_usd=Decimal("25"),
                        max_orders_per_window=1)
     assert b.reserve_orders(2) is False
-    assert b.halted  # the HALT fires...
-    # ...and the caller must see False BEFORE sending anything
+    # caos H11: no real order was sent, so a failed reservation must NOT
+    # halt (and must consume nothing) - the caller sees False and aborts.
+    assert not b.halted
+    assert b.reserve_orders(1) is True
 
 
 def test_reserve_orders_success_path():

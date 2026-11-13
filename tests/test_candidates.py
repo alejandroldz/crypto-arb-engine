@@ -192,7 +192,9 @@ async def test_breaker_rate_limit_blocks_entry_before_execution():
     c = await handle_funding_candidate(ctx, _rate("krakenfutures", "BTC/USD:USD"), now)
     assert c is None
     assert ctx.paper.opened == 0
-    assert ctx.breaker.halted
+    # caos H11: a failed reservation aborts the entry without a HALT
+    # (nothing was sent); the old contract halted here.
+    assert not ctx.breaker.halted
 
 
 @pytest.mark.asyncio

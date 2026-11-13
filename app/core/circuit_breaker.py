@@ -22,28 +22,6 @@ from app.core.decimals import D
 logger = logging.getLogger("breaker")
 
 
-class TokenBucket:
-    """Per-exchange request rate limiter (respect ccxt rate limits)."""
-
-    def __init__(self, capacity: int, refill_per_second: int):
-        self.capacity = capacity
-        self.refill_per_second = refill_per_second
-        self._tokens = float(capacity)
-        self._last = time.monotonic()
-
-    def allow(self) -> bool:
-        now = time.monotonic()
-        elapsed = now - self._last
-        self._last = now
-        self._tokens = min(
-            self.capacity, self._tokens + elapsed * self.refill_per_second
-        )
-        if self._tokens >= 1:
-            self._tokens -= 1
-            return True
-        return False
-
-
 @dataclass
 class CircuitBreaker:
     max_consecutive_failures: int
@@ -77,7 +55,11 @@ class CircuitBreaker:
                         "breaker restored HALT from disk: %s", self.halt_reason
                     )
             except Exception as exc:
-                logger.error("breaker state unreadable, starting clean: %s", exc)
+                # caos H2: an unreadable state file may hide a real HALT.
+                # Fail closed: assume halted until a human reviews it.
+                self.halted = True
+                self.halt_reason = f"state file unreadable: {exc}"
+                logger.error("breaker state unreadable, failing CLOSED (halted): %s", exc)
 
     @staticmethod
     def _today() -> str:
@@ -86,28 +68,41 @@ class CircuitBreaker:
     def _persist(self) -> None:
         if not self.state_path:
             return
-        tmp = Path(self.state_path + ".tmp")
-        tmp.write_text(json.dumps({
+        # caos H3: disk failures (ENOSPC) must not kill the engine - this runs
+        # inside error handlers. In-memory state still protects the process.
+        try:
+            tmp = Path(self.state_path + ".tmp")
+            tmp.write_text(json.dumps({
             "halted": self.halted,
             "halt_reason": self.halt_reason,
             "consecutive_failures": self._consecutive_failures,
             "day": self._day or self._today(),
             "daily_pnl_usd": str(self._daily_pnl_usd),
         }))
-        tmp.replace(self.state_path)
+            tmp.replace(self.state_path)
+        except OSError as exc:
+            logger.error("breaker state persist failed (disk?): %s", exc)
 
     def _maybe_roll_day(self) -> None:
         """op.#8: 'daily' means a defined UTC day - roll even without restart."""
         today = self._today()
-        if self._day != today:
-            self._day = today
-            self._daily_pnl_usd = Decimal("0")
-            self._persist()
+        # caos H1: `!=` let a clock jump BACK erase the accumulated daily
+        # loss. ISO dates compare lexicographically; roll forward only.
+        if self._day and today <= self._day:
+            return
+        self._day = today
+        self._daily_pnl_usd = Decimal("0")
+        self._persist()
 
     def seed_daily_pnl(self, amount: Decimal) -> None:
         """op.#8: rebuild today's realized PnL from the ledger at startup."""
         self._day = self._today()
-        self._daily_pnl_usd = D(amount)
+        amount = D(amount)
+        if not amount.is_finite():
+            # fuzz F11/F18: a NaN from the ledger (NULL pnl sums) must not
+            # seed garbage; fail loud instead of silently trading on.
+            raise ValueError(f"daily pnl seed must be finite, got {amount!r}")
+        self._daily_pnl_usd = amount
         if self._daily_pnl_usd <= -D(self.max_daily_loss_usd):
             self._halt("daily loss limit exceeded")
         self._persist()
@@ -151,13 +146,25 @@ class CircuitBreaker:
     def reserve_orders(self, n: int) -> bool:
         """Atomically reserve capacity for n orders of one ENTRY.
 
-        Returns False (and halts per record_order) if the window cannot
-        take all n - the caller MUST abort the entry. Fixes the bug where
-        the second leg's HALT was ignored and the entry executed anyway.
+        Returns False if the window cannot take all n - the caller MUST
+        abort the entry. Fixes the bug where the second leg's HALT was
+        ignored and the entry executed anyway.
+
+        caos H11: the old loop consumed partial slots before failing AND
+        persisted a HALT although no real order was sent. Now a failed
+        reservation consumes nothing and does not halt.
         """
+        now = time.monotonic()
+        while self._order_times and now - self._order_times[0] > self.window_seconds:
+            self._order_times.popleft()
+        if len(self._order_times) + n > self.max_orders_per_window:
+            logger.warning(
+                "order rate window full: cannot reserve %d slots (%d/%d used)",
+                n, len(self._order_times), self.max_orders_per_window,
+            )
+            return False
         for _ in range(n):
-            if not self.record_order():
-                return False
+            self._order_times.append(now)
         return True
 
     def record_exit(self) -> None:
@@ -177,8 +184,13 @@ class CircuitBreaker:
         self._persist()
 
     def record_pnl_usd(self, amount: Decimal) -> None:
+        amount = D(amount)
+        if not amount.is_finite():
+            # fuzz F18: NaN/Infinity would silently defeat the daily limit
+            logger.error("non-finite pnl ignored by breaker: %r", amount)
+            return
         self._maybe_roll_day()
-        self._daily_pnl_usd += D(amount)
+        self._daily_pnl_usd += amount
         self._persist()
         if self._daily_pnl_usd + self._mtm_usd <= -D(self.max_daily_loss_usd):
             self._halt("daily loss limit exceeded")
