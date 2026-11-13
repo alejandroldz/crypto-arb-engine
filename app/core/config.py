@@ -15,6 +15,22 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from app.core.decimals import D, ZERO
 
 
+def _bounded_decimal(raw: str, name: str, lo: Decimal, hi: Decimal) -> Decimal:
+    """Parse a config decimal and bound it (fuzz F3/F4).
+
+    Infinity/NaN/negatives reached the engine from fee maps (a negative fee
+    APPROVED a carry with negative costs). Out-of-range or malformed values
+    raise ValueError naming the setting.
+    """
+    try:
+        d = D(raw)
+    except (ArithmeticError, TypeError) as exc:
+        raise ValueError(f"{name}: invalid decimal {raw!r}") from exc
+    if not d.is_finite() or d < lo or d > hi:
+        raise ValueError(f"{name}: value {d} outside [{lo}, {hi}]")
+    return d
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", extra="ignore"
@@ -209,7 +225,12 @@ class Settings(BaseSettings):
     )
     @classmethod
     def _decimal_fields(cls, v: object) -> Decimal:
-        return D(v)  # rejects floats with a clear error
+        # fuzz F4: decimal.InvalidOperation is NOT a ValueError, so pydantic
+        # surfaced it raw without naming the setting. Wrap it.
+        try:
+            return D(v)  # rejects floats with a clear error
+        except (ArithmeticError, TypeError) as exc:
+            raise ValueError(f"invalid decimal value {v!r}") from exc
 
     @field_validator("max_leverage")
     @classmethod
@@ -236,7 +257,9 @@ class Settings(BaseSettings):
         for pair in self.short_leverage_map.split(","):
             if ":" in pair:
                 ex, lev = pair.split(":", 1)
-                out[ex.strip()] = D(lev.strip())
+                out[ex.strip()] = _bounded_decimal(
+                    lev.strip(), f"short_leverage_map[{ex.strip()}]",
+                    Decimal("1"), Decimal("100"))
         return out
 
     def short_leverage_for(self, exchange: str) -> Decimal:
@@ -265,7 +288,9 @@ class Settings(BaseSettings):
         for pair in self.taker_fee_bps.split(","):
             if ":" in pair:
                 venue, bps = pair.split(":", 1)
-                out[venue.strip()] = D(bps.strip())
+                out[venue.strip()] = _bounded_decimal(
+                    bps.strip(), f"taker_fee_bps[{venue.strip()}]",
+                    ZERO, Decimal("10000"))
         return out
 
     def taker_fee_for(self, exchange: str) -> Decimal:
@@ -280,7 +305,9 @@ class Settings(BaseSettings):
         for pair in self.maker_fee_bps.split(","):
             if ":" in pair:
                 venue, bps = pair.split(":", 1)
-                out[venue.strip()] = D(bps.strip())
+                out[venue.strip()] = _bounded_decimal(
+                    bps.strip(), f"maker_fee_bps[{venue.strip()}]",
+                    ZERO, Decimal("10000"))
         return out
 
     def maker_fee_for(self, exchange: str) -> Decimal:
@@ -301,7 +328,9 @@ class Settings(BaseSettings):
         for pair in self.collateral_haircut_map.split(","):
             if ":" in pair:
                 asset, ratio = pair.split(":", 1)
-                out[asset.strip().upper()] = D(ratio.strip())
+                out[asset.strip().upper()] = _bounded_decimal(
+                    ratio.strip(), f"collateral_haircut_map[{asset.strip()}]",
+                    ZERO, Decimal("1"))
         return out
 
     def collateral_ratio_for(self, asset: str) -> Decimal:
@@ -337,7 +366,9 @@ class Settings(BaseSettings):
             if ":" in pair:
                 ex, hours = pair.split(":", 1)
                 if ex.strip() == exchange:
-                    return D(hours.strip())
+                    return _bounded_decimal(
+                        hours.strip(), f"funding_interval_hours[{ex.strip()}]",
+                        Decimal("0.000001"), Decimal("720"))
         return Decimal("8")
 
     def spot_symbol_for_base(self, base: str) -> str | None:

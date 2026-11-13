@@ -39,3 +39,29 @@ def test_bybit_still_supported_not_principal():
     s = Settings()
     assert "bybit" in s.taker_fee_bps_map  # fee config stays
     assert "bybit" not in s.perp_exchange_list[:2]  # but not the principal pair
+
+
+def test_config_maps_reject_infinity_nan_negative():
+    import pytest
+
+    from app.core.config import Settings
+    with pytest.raises(ValueError, match="taker_fee_bps"):
+        Settings(taker_fee_bps="kraken:Infinity").taker_fee_bps_map
+    with pytest.raises(ValueError, match="taker_fee_bps"):
+        Settings(taker_fee_bps="kraken:-5").taker_fee_bps_map
+    with pytest.raises(ValueError, match="maker_fee_bps"):
+        Settings(maker_fee_bps="okx:NaN").maker_fee_bps_map
+    with pytest.raises(ValueError, match="collateral_haircut_map"):
+        Settings(collateral_haircut_map="BTC:1.5").collateral_ratio_map
+    with pytest.raises(ValueError, match="funding_interval_hours"):
+        Settings(funding_interval_hours="okx:abc").funding_interval_h_for("okx")
+
+
+def test_malformed_decimal_field_names_value():
+    import pytest
+    from pydantic import ValidationError
+
+    from app.core.config import Settings
+    with pytest.raises(ValidationError) as exc:
+        Settings(min_net_profit_usd="abc")
+    assert "min_net_profit_usd" in str(exc.value)  # antes: InvalidOperation cruda
