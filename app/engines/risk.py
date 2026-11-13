@@ -6,7 +6,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal
 
-from app.connectors.normalizer import L2OrderBook
 from app.core.decimals import D, div, mul, pct_of
 
 
@@ -16,8 +15,9 @@ class StalenessGate:
     def __init__(self, max_age_ms: int):
         self.max_age_ms = max_age_ms
 
-    def is_fresh(self, book: L2OrderBook, now_ns: int) -> bool:
-        return book.age_ms(now_ns) <= self.max_age_ms
+    def is_fresh(self, snapshot: object, now_ns: int) -> bool:
+        """Accepts any snapshot exposing age_ms(now_ns) (books, funding)."""
+        return snapshot.age_ms(now_ns) <= self.max_age_ms
 
 
 def short_liquidation_price(entry_price: Decimal, leverage: Decimal) -> Decimal:

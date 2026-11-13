@@ -77,9 +77,7 @@ async def run() -> None:
             while not funding_q.empty():
                 rate = funding_q.get_nowait()
                 funding[f"{rate.exchange}:{rate.symbol}"] = rate
-                if not breaker.halted and funding_gate.is_fresh(
-                    _booklike(rate), now_ns
-                ):
+                if not breaker.halted and funding_gate.is_fresh(rate, now_ns):
                     opp = detect_funding_carry(
                         rate,
                         notional=notional,
@@ -105,10 +103,6 @@ async def run() -> None:
     for t in tasks:
         t.cancel()
     await repo.close()
-
-
-def _booklike(rate):
-    return rate  # FundingRate exposes the same age_ms(now_ns) interface
 
 
 def entrypoint() -> None:
