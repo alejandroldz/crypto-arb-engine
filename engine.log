@@ -399,3 +399,49 @@ aiohttp.client_exceptions.ClientConnectionResetError: Cannot write to closing tr
 2026-11-13 18:19:18,775 main INFO real account health okx: equity 0 mmr 0
 2026-11-13 18:20:18,209 main INFO real account health krakenfutures: equity 0 mmr 0
 2026-11-13 18:20:18,866 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 18:21:18,510 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 18:21:19,350 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 18:22:18,630 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 18:22:19,396 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 18:22:30,291 ingestion WARNING book feed kraken SOL/USD: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-13 18:23:19,144 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 18:23:19,786 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 18:24:19,481 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 18:24:20,190 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 18:25:21,326 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 18:25:22,017 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 18:26:20,303 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 18:26:20,972 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 18:27:20,699 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 18:27:21,391 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 18:28:20,901 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 18:28:21,523 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 18:29:21,438 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 18:29:22,132 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 18:30:21,862 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 18:30:22,667 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 18:31:22,052 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 18:31:22,641 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 18:32:22,646 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 18:32:23,297 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 18:33:22,860 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 18:33:23,590 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 18:34:23,269 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 18:34:23,998 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 18:35:23,758 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 18:35:24,412 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 18:36:23,893 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 18:36:24,668 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 18:37:24,408 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 18:37:25,150 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 18:38:24,889 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 18:38:25,649 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 18:39:25,437 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 18:39:26,297 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 18:41:58,689 ingestion WARNING book feed kraken ETH/USD: RequestTimeout: Connection to wss://ws.kraken.com/v2 timed out due to a ping-pong keepalive missing on time
+2026-11-13 18:41:58,689 ingestion WARNING book feed kraken BTC/USD: RequestTimeout: Connection to wss://ws.kraken.com/v2 timed out due to a ping-pong keepalive missing on time
+2026-11-13 18:41:58,690 ingestion WARNING book feed krakenfutures ETH/USD:USD: RequestTimeout: Connection to wss://futures.kraken.com/ws/v1 timed out due to a ping-pong keepalive missing on time
+2026-11-13 18:41:58,690 ingestion WARNING book feed okx ETH/USD:USD-310404: RequestTimeout: Connection to wss://ws.okx.com:443/ws/v5/public timed out due to a ping-pong keepalive missing on time
+2026-11-13 18:41:58,690 ingestion WARNING book feed okx BTC/USD:USD-310404: RequestTimeout: Connection to wss://ws.okx.com:443/ws/v5/public timed out due to a ping-pong keepalive missing on time
+2026-11-13 18:41:58,690 ingestion WARNING book feed okx SOL/USD:USD-310404: RequestTimeout: Connection to wss://ws.okx.com:443/ws/v5/public timed out due to a ping-pong keepalive missing on time
+2026-11-13 18:41:59,151 main INFO real account health krakenfutures: equity 0 mmr 0
