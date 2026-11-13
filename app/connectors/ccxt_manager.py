@@ -37,7 +37,14 @@ async def fetch_minimal_markets(exchange_id: str) -> list:
         if exchange_id == "okx":  # EU X-Perps are instType FUTURES
             r = await ex.public_get_public_instruments({"instType": "FUTURES"})
             raw = r.get("data", [])
-        elif exchange_id in ("deribit", "krakenfutures", "kraken"):
+        elif exchange_id == "deribit":
+            # targeted single call: BTC futures only (the full load walks every
+            # currency's option chain - that alone peaks >1GB and OOMs)
+            return await ex.fetch_markets(
+                {"fetchAllMarkets": True, "currency": "BTC", "kind": "future",
+                 "expired": False}
+            )
+        elif exchange_id in ("krakenfutures", "kraken"):
             # no parse_markets on these: fetch all (transient peak, one venue
             # at a time in main) and keep only what feeds subscribe to
             markets = await ex.fetch_markets()

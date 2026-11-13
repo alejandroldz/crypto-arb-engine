@@ -203,6 +203,8 @@ async def run() -> None:
     )
     last_mmr: Decimal | None = None
     last_health_check = 0.0
+    last_tick_flush = 0.0
+    last_book_record: dict[str, float] = {}
     spot_key_default = f"{spot_ex}:{spot_symbols[0]}"
 
     # --- restart recovery: rebuild open carries from SQLite ---
@@ -268,7 +270,13 @@ async def run() -> None:
             while not books_q.empty():
                 book = books_q.get_nowait()
                 books[f"{book.exchange}:{book.symbol}"] = book
-                await asyncio.to_thread(ticks.record_book, book)
+                # sample: 1 snapshot/s per symbol is enough for VWAP/slippage
+                # analysis - every tick floods the store and the sandbox RAM
+                bk = f"{book.exchange}:{book.symbol}"
+                now_mono = time.monotonic()
+                if now_mono - last_book_record.get(bk, 0.0) >= 1.0:
+                    last_book_record[bk] = now_mono
+                    await asyncio.to_thread(ticks.record_book, book)
 
             while not funding_q.empty():
                 rate = funding_q.get_nowait()
@@ -352,6 +360,10 @@ async def run() -> None:
                     f"PAPER OPEN {opp.exchange} {opp.symbol} notional {opp.notional} "
                     f"rate {opp.funding_rate} projected {opp.projected_net} USD"
                 )
+
+            if time.monotonic() - last_tick_flush > 30:
+                last_tick_flush = time.monotonic()
+                await asyncio.to_thread(ticks.flush)
 
             # real account health (read-only keys); simulated UTA is the fallback
             health_venues = []

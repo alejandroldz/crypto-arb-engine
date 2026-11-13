@@ -13,6 +13,8 @@ from app.connectors.normalizer import FundingRate, L2OrderBook
 class TickStore:
     def __init__(self, path: str):
         self._conn = duckdb.connect(path)
+        self._conn.execute("PRAGMA memory_limit='700MB'")
+        self._book_buf: list[list] = []
         self._conn.execute(
             """
             CREATE TABLE IF NOT EXISTS book_snapshots (
@@ -40,8 +42,10 @@ class TickStore:
         )
 
     def record_book(self, book: L2OrderBook) -> None:
-        self._conn.execute(
-            "INSERT INTO book_snapshots VALUES (?, ?, ?, ?, ?, ?, ?)",
+        # Buffered: one INSERT per book update is DuckDB's pathological case
+        # (catalog/transaction overhead per single-row txn grows RSS without
+        # bound on a 2GB sandbox). Batch via executemany on flush().
+        self._book_buf.append(
             [
                 datetime.now(timezone.utc),
                 book.exchange,
@@ -50,7 +54,17 @@ class TickStore:
                 str(book.best_ask.price),
                 json.dumps([[str(l.price), str(l.qty)] for l in book.bids]),
                 json.dumps([[str(l.price), str(l.qty)] for l in book.asks]),
-            ],
+            ]
+        )
+        if len(self._book_buf) >= 200:
+            self.flush()
+
+    def flush(self) -> None:
+        if not self._book_buf:
+            return
+        buf, self._book_buf = self._book_buf, []
+        self._conn.executemany(
+            "INSERT INTO book_snapshots VALUES (?, ?, ?, ?, ?, ?, ?)", buf
         )
 
     def funding_max_ts(self):
