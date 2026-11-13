@@ -210,9 +210,11 @@ class AtomicLegCoordinator:
                     note="leg2 fill not finite/valid - manual check required",
                 )
         except asyncio.TimeoutError:
-            filled2 = await self._actual_fills(leg2_sized)  # None = unknown
+            # F17: reconciliation output must pass the same validation -
+            # a NaN/Infinity fill is UNKNOWN, never a number
+            filled2 = self._valid_fill(await self._actual_fills(leg2_sized))
         except Exception as exc:
-            actual = await self._actual_fills(leg2_sized)
+            actual = self._valid_fill(await self._actual_fills(leg2_sized))
             filled2 = actual if actual is not None else ZERO
             if actual is None:
                 result = await self._flatten(leg1, filled1, leg2_sized, ZERO)

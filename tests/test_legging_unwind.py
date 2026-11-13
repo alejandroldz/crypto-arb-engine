@@ -191,3 +191,45 @@ async def test_f17_infinite_leg2_fill_never_fakes_clean_unwound():
     assert r.state is LegState.UNWIND_UNCERTAIN
     assert flattened  # leg1 was flattened
     assert "both legs flattened" not in r.note
+
+
+@pytest.mark.asyncio
+async def test_f17_reconciliation_nan_is_unknown_not_crash():
+    """F17 residual: NaN from reconcile_fills on the leg2 timeout path."""
+    calls = {"n": 0}
+
+    async def ioc(leg):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return D("0.1")
+        await asyncio.sleep(0.2)  # leg2 times out
+        return D("0.1")
+
+    async def market(exchange, symbol, side, qty):
+        return D("0")
+
+    coord = AtomicLegCoordinator(
+        live_trading_enabled=True,
+        place_ioc=ioc,
+        place_market=market,
+        max_leg_delay_ms=50,
+        reconcile_fills=lambda leg: _ret(D("NaN")),
+    )
+    r = await coord.execute(LEG1, LEG2)
+    assert r.state is LegState.UNWIND_UNCERTAIN
+
+
+@pytest.mark.asyncio
+async def test_f17_leg1_reconcile_nan_flags_uncertain():
+    async def boom(leg):
+        raise ConnectionError("venue down")
+
+    coord = AtomicLegCoordinator(
+        live_trading_enabled=True,
+        place_ioc=boom,
+        place_market=lambda *a: _ret(D("0")),
+        max_leg_delay_ms=50,
+        reconcile_fills=lambda leg: _ret(D("NaN")),
+    )
+    r = await coord.execute(LEG1, LEG2)
+    assert r.state is LegState.UNWIND_UNCERTAIN

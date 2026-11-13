@@ -323,4 +323,5 @@ class Repository:
                         r.net_pnl_usd if r.net_pnl_usd is not None else "",
                     ]
                 )
+        tmp.replace(path)
         return len(rows)
