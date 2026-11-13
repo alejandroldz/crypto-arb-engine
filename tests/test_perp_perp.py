@@ -443,3 +443,26 @@ async def test_open_pair_aborted_when_fee_guardrail_raised(tmp_path):
     lb, sb = book(*LONG, 99.98, 100.00), book(*SHORT, 100.02, 100.04)
     assert await t.open_pair(_detect(), lambda: (lb, sb)) is None
     assert await repo.open_positions() == []
+
+
+def test_detect_perp_perp_rejects_bad_interval_and_empty_history():
+    import pytest
+
+    from app.engines.perp_perp import detect_perp_perp
+    kw = dict(
+        base="BTC", long_exchange="krakenfutures", long_symbol="BTC/USD:USD",
+        short_exchange="okx", short_symbol="BTC/USD:USD-310404",
+        notional=D("1000"), holding_hours=24,
+        maker_fee_bps=D("2"), taker_fee_bps=D("5"),
+        slippage_buffer_bps=D("5"), min_net_profit_usd=D("0.01"),
+    )
+    hist = dict(long_history=[D("0.0001")] * 50, short_history=[D("0.001")] * 50)
+    with pytest.raises(ValueError, match="interval"):
+        detect_perp_perp(long_interval_h=D("0"), short_interval_h=D("8"), **hist, **kw)
+    with pytest.raises(ValueError, match="interval"):
+        detect_perp_perp(long_interval_h=D("-1"), short_interval_h=D("8"), **hist, **kw)
+    # min_history_samples=0 with empty history: None, not IndexError (F14)
+    assert detect_perp_perp(
+        long_interval_h=D("1"), short_interval_h=D("8"),
+        long_history=[], short_history=[], min_history_samples=0, **kw,
+    ) is None

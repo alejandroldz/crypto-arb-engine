@@ -88,7 +88,15 @@ def detect_perp_perp(
     its p75 rate. Rates are per-interval; normalized to per-hour before
     comparing (kraken pays hourly, okx every 8h).
     """
-    if len(short_history) < min_history_samples or len(long_history) < min_history_samples:
+    # fuzz F13/F14: interval <= 0 divides by zero below; empty histories
+    # (possible when min_history_samples=0) crash _rank on xs[0].
+    if D(long_interval_h) <= ZERO or D(short_interval_h) <= ZERO:
+        raise ValueError(
+            f"funding intervals must be positive, got {long_interval_h}/{short_interval_h}"
+        )
+    if (not short_history or not long_history
+            or len(short_history) < min_history_samples
+            or len(long_history) < min_history_samples):
         return None
     collect_ph = div(_rank(short_history, 25), D(short_interval_h))
     pay_ph = div(_rank(long_history, 75), D(long_interval_h))
