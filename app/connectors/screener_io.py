@@ -127,7 +127,10 @@ async def fetch_krakenfutures_metrics(history_limit: int = 720,
                     f"{KRAKEN_FUT}/v4/historicalfundingrates",
                     params={"symbol": t["symbol"]},
                 ) as r:
-                    hist = (await r.json()).get("rates", [])[:history_limit]
+                    # v4 returns the FULL history ascending: take the LATEST
+                    # window, not the oldest (a year-old mean quarantined ETH
+                    # against the live polled mean)
+                    hist = (await r.json()).get("rates", [])[-history_limit:]
                 # relativeFundingRate is the rate; fundingRate is absolute USD
                 rates = [float(h["relativeFundingRate"]) for h in hist]
                 if rates:

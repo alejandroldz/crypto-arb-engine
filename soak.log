@@ -30,4 +30,24 @@ margin: UNIFIED 90% util | BTC ratio 95% | MMR n/a (warn 65%, unwind 75%) | max
 └───────────────┴────────────────────┴──────────┴─────────────────────┴────────┘
      opportunities: 0 | open positions: 0 | paper PnL: 0 USD | breaker: ok      
  margin: UNIFIED 90% util | worst ratio 85% | MMR n/a (warn 65%, unwind 75%) |  
+                              max safe pump +130%                                                      crypto-arb-engine (paper trading)                        
+┏━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┓
+┃ Feed          ┃ Symbol             ┃ Best bid ┃ Best ask / rate     ┃ Age ms ┃
+┡━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━┩
+│ kraken        │ BTC/USD            │ 68979.1  │ 68979.2             │ 128    │
+│ kraken        │ ETH/USD            │ 1947.39  │ 1947.48             │ 4      │
+│ kraken        │ SOL/USD            │ 80.14    │ 80.15               │ 15     │
+│ krakenfutures │ BTC/USD:USD        │ 68989.0  │ 68990.0             │ 4      │
+│ krakenfutures │ ETH/USD:USD        │ 1947.4   │ 1947.5              │ 0      │
+│ okx           │ BTC/USD:USD-310404 │ 68981.6  │ 68981.7             │ 166    │
+│ okx           │ ETH/USD:USD-310404 │ 1946.64  │ 1946.65             │ 19     │
+│ okx           │ SOL/USD:USD-310404 │ 80.1     │ 80.11               │ 22     │
+│ krakenfutures │ BTC/USD:USD        │ funding  │ 0.00001230114132713 │ 28933  │
+│ krakenfutures │ ETH/USD:USD        │ funding  │ -0.000008061718036… │ 30293  │
+│ okx           │ BTC/USD:USD-310404 │ funding  │ 0.0001000000000000  │ 4878   │
+│ okx           │ ETH/USD:USD-310404 │ funding  │ 0.0000377699598785  │ 5141   │
+│ okx           │ SOL/USD:USD-310404 │ funding  │ 0.0000320147659149  │ 4893   │
+└───────────────┴────────────────────┴──────────┴─────────────────────┴────────┘
+     opportunities: 0 | open positions: 0 | paper PnL: 0 USD | breaker: ok      
+ margin: UNIFIED 90% util | worst ratio 85% | MMR n/a (warn 65%, unwind 75%) |  
                               max safe pump +130%                               
