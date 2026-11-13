@@ -6,6 +6,8 @@ import logging
 from datetime import datetime, timezone
 from decimal import Decimal
 
+import threading
+
 import duckdb
 
 from app.core.decimals import D
@@ -16,6 +18,11 @@ from app.connectors.normalizer import FundingRate, L2OrderBook
 
 class TickStore:
     def __init__(self, path: str):
+        # DuckDB connections are NOT thread-safe, and this store is used from
+        # the event loop (record_book/flush) and from worker threads
+        # (funding_history via asyncio.to_thread): serialize every access or
+        # the driver raises ResourceInUse and drops work.
+        self._lock = threading.RLock()
         self._conn = duckdb.connect(path)
         self._conn.execute("PRAGMA memory_limit='700MB'")
         self._book_buf: list[list] = []
@@ -49,6 +56,10 @@ class TickStore:
         # Buffered: one INSERT per book update is DuckDB's pathological case
         # (catalog/transaction overhead per single-row txn grows RSS without
         # bound on a 2GB sandbox). Batch via executemany on flush().
+        with self._lock:
+            self._record_book_locked(book)
+
+    def _record_book_locked(self, book: L2OrderBook) -> None:
         self._book_buf.append(
             [
                 datetime.now(timezone.utc).replace(tzinfo=None),
@@ -61,9 +72,13 @@ class TickStore:
             ]
         )
         if len(self._book_buf) >= 200:
-            self.flush()
+            self._flush_locked()
 
     def flush(self) -> None:
+        with self._lock:
+            self._flush_locked()
+
+    def _flush_locked(self) -> None:
         if not self._book_buf:
             return
         try:
@@ -82,16 +97,18 @@ class TickStore:
     def funding_max_ts_by_series(self) -> dict:
         """op.#16: watermark PER SERIES - a global max cannot repair gaps in
         series whose latest sample is older than another series' max."""
-        rows = self._conn.execute(
+        with self._lock:
+            rows = self._conn.execute(
             "SELECT exchange, symbol, max(ts_utc) FROM funding_snapshots "
             "GROUP BY 1, 2"
         ).fetchall()
         return {(r[0], r[1]): r[2] for r in rows}
 
     def funding_max_ts(self):
-        row = self._conn.execute(
-            "SELECT max(ts_utc) FROM funding_snapshots"
-        ).fetchone()
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT max(ts_utc) FROM funding_snapshots"
+            ).fetchone()
         return row[0].isoformat() if row and row[0] else ""
 
     def insert_funding_raw(
@@ -103,10 +120,11 @@ class TickStore:
             ts = datetime.fromisoformat(ts_iso)
             if ts.tzinfo is not None:
                 ts = ts.astimezone(timezone.utc).replace(tzinfo=None)
-            self._conn.execute(
-                "INSERT INTO funding_snapshots VALUES (?, ?, ?, ?, ?, ?)",
-                [ts, exchange, symbol, rate, predicted, None],
-            )
+            with self._lock:
+                self._conn.execute(
+                    "INSERT INTO funding_snapshots VALUES (?, ?, ?, ?, ?, ?)",
+                    [ts, exchange, symbol, rate, predicted, None],
+                )
         except Exception as exc:
             logger.warning(
                 "funding seed insert failed %s %s %s: %s",
@@ -126,6 +144,10 @@ class TickStore:
         return dt
 
     def record_funding(self, rate: FundingRate) -> None:
+        with self._lock:
+            self._record_funding_locked(rate)
+
+    def _record_funding_locked(self, rate: FundingRate) -> None:
         # F08: dedupe replays. Polls within the same funding interval carry
         # the same rate and the same next_funding_ts; storing each one lets a
         # replayed snapshot fill the history and pass the min-samples gate.
@@ -160,14 +182,19 @@ class TickStore:
         polls that replay the same rate within the same interval (F08), so
         min_funding_history means N distinct observations, not N polls.
         """
-        rows = self._conn.execute(
-            "SELECT rate FROM funding_snapshots WHERE exchange = ? AND symbol = ? "
-            "ORDER BY ts_utc DESC LIMIT ?",
-            [exchange, symbol, limit],
-        ).fetchall()
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT rate FROM funding_snapshots WHERE exchange = ? AND symbol = ? "
+                "ORDER BY ts_utc DESC LIMIT ?",
+                [exchange, symbol, limit],
+            ).fetchall()
         return [Decimal(str(r[0])) for r in reversed(rows)]
 
     def recent(self, symbol: str, limit: int = 100) -> list[tuple]:
+        with self._lock:
+            return self._recent_locked(symbol, limit)
+
+    def _recent_locked(self, symbol: str, limit: int) -> list[tuple]:
         return self._conn.execute(
             "SELECT ts_utc, exchange, best_bid, best_ask FROM book_snapshots "
             "WHERE symbol = ? ORDER BY ts_utc DESC LIMIT ?",
@@ -178,4 +205,5 @@ class TickStore:
         try:
             self.flush()  # op.#15: a clean shutdown must not lose the buffer
         finally:
-            self._conn.close()
+            with self._lock:
+                self._conn.close()

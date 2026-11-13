@@ -10,3 +10,5 @@
 {"ts": "2026-11-13T18:03:52.220287+00:00", "text": "hi"}
 {"ts": "2026-11-13T18:04:36.445677+00:00", "text": "hi"}
 {"ts": "2026-11-13T18:05:32.067676+00:00", "text": "hi"}
+{"ts": "2026-11-13T19:15:02.171641+00:00", "text": "CANDIDATE ERROR: ResourceInUseException: Resource In Use Error: connection is busy with another call; it refuses instead of waiting, so use a separate connection from cursor()"}
+{"ts": "2026-11-13T19:16:23.265848+00:00", "text": "hi"}
