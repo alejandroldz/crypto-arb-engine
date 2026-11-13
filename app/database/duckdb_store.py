@@ -53,6 +53,24 @@ class TickStore:
             ],
         )
 
+    def funding_max_ts(self):
+        row = self._conn.execute(
+            "SELECT max(ts) FROM funding_snapshots"
+        ).fetchone()
+        return row[0] if row and row[0] else ""
+
+    def insert_funding_raw(
+        self, exchange: str, symbol: str, ts_iso: str, rate: str, predicted
+    ) -> None:
+        # Direct insert for seeding from the CSV log (deduped by unique row).
+        try:
+            self._conn.execute(
+                "INSERT INTO funding_snapshots VALUES (?, ?, ?, ?, ?)",
+                [ts_iso, exchange, symbol, rate, predicted],
+            )
+        except Exception:
+            pass  # duplicate sample already seeded
+
     def record_funding(self, rate: FundingRate) -> None:
         self._conn.execute(
             "INSERT INTO funding_snapshots VALUES (?, ?, ?, ?, ?, ?)",

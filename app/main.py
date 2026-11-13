@@ -54,6 +54,45 @@ logger = logging.getLogger("main")
 
 MAX_OPPORTUNITIES_KEPT = 200
 
+FUNDING_LOG_CSV = "funding_log.csv"
+
+
+def seed_funding_history(ticks):
+    # Seed DuckDB funding history from the CSV log (survives restarts).
+    import csv
+
+    try:
+        with open(FUNDING_LOG_CSV, newline="", encoding="utf-8") as fh:
+            rows = list(csv.reader(fh))
+    except FileNotFoundError:
+        return 0
+    seeded = 0
+    max_ts = ticks.funding_max_ts()
+    for exchange, symbol, ts_iso, rate, predicted in rows[1:] if rows else []:
+        if ts_iso <= max_ts:
+            continue  # already in DuckDB
+        ticks.insert_funding_raw(exchange, symbol, ts_iso, rate, predicted or None)
+        seeded += 1
+    return seeded
+
+
+def append_funding_log(rate):
+    import csv
+    import os
+
+    new = not os.path.exists(FUNDING_LOG_CSV)
+    with open(FUNDING_LOG_CSV, "a", newline="", encoding="utf-8") as fh:
+        w = csv.writer(fh)
+        if new:
+            w.writerow(["exchange", "symbol", "ts", "rate", "predicted_rate"])
+        w.writerow([
+            rate.exchange, rate.symbol,
+            datetime.now(timezone.utc).isoformat(),
+            str(rate.rate),
+            "" if rate.predicted_rate is None else str(rate.predicted_rate),
+        ])
+
+
 
 @dataclass
 class OpenCarry:
@@ -82,6 +121,9 @@ async def run() -> None:
     repo = Repository(settings.sqlite_url)
     await repo.init()
     ticks = TickStore(settings.duckdb_path)
+    seeded = seed_funding_history(ticks)
+    if seeded:
+        logger.info("seeded %d funding samples from %s", seeded, FUNDING_LOG_CSV)
     notifier = TelegramNotifier(settings.telegram_bot_token, settings.telegram_chat_id)
     breaker = CircuitBreaker(
         max_consecutive_failures=settings.cb_max_consecutive_failures,
@@ -217,6 +259,7 @@ async def run() -> None:
                 fkey = f"{rate.exchange}:{rate.symbol}"
                 funding[fkey] = rate
                 await asyncio.to_thread(ticks.record_funding, rate)
+                append_funding_log(rate)
                 if breaker.halted or not gate.is_fresh(rate, now_ns):
                     continue
                 pkey = f"{spot_key_default}|{fkey}"
