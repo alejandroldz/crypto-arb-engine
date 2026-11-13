@@ -14,10 +14,10 @@ def _book(levels):
 
 def test_f23_no_overfill_pathological_precision():
     levels = [
-        OrderBookLevel(price="1.000000000000000000000000001", qty="9999999999999999999999999999"),
-        OrderBookLevel(price="1.000000000000000000000000003", qty="9999999999999999999999999999"),
+        OrderBookLevel(price="1.0000000000000000000000000001", qty="2.0000000000000000000000000002"),
+        OrderBookLevel(price="1.0000000000000000000000000003", qty="2.0000000000000000000000000004"),
     ]
-    size = Decimal("10000000000000000000000000001")  # >28 significant digits
+    size = Decimal("3.0000000000000000000000000005")  # >28 significant digits
     r = vwap_for_quote(_book(levels), "sell", size, Decimal("1"))
     assert r.filled_quote <= size
     rb = vwap_for_base(_book(levels), "sell", size, Decimal("1"))

@@ -12,7 +12,7 @@ from decimal import Decimal
 from typing import Literal
 
 from app.connectors.normalizer import L2OrderBook, OrderBookLevel
-from app.core.decimals import D, ZERO, bps_of, div, mul
+from app.core.decimals import D, MATH_PRECISION, ZERO, bps_of, div, mul
 
 Side = Literal["buy", "sell"]
 
