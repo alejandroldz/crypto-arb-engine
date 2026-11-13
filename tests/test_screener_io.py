@@ -43,7 +43,8 @@ class _Session:
 
 @pytest.mark.asyncio
 async def test_kraken_history_window_is_latest_not_oldest(monkeypatch):
-    tickers = [{"symbol": "PF_ETHUSD", "vol24h": "1000", "last": "3000"}]
+    tickers = [{"symbol": "PF_ETHUSD", "volumeQuote": "2500000",
+                "vol24h": "1000", "last": "3000"}]
     # ascending full history: old rates strongly positive, recent negative
     hist = ([{"relativeFundingRate": "0.001"}] * 500
             + [{"relativeFundingRate": "-0.001"}] * 500)
@@ -117,3 +118,21 @@ async def test_c5_http_error_skips_venue_not_empty_success(monkeypatch):
     monkeypatch.setattr(screener_io.aiohttp, "ClientSession", lambda: _ErrSession())
     assert await screener_io.fetch_okx_xperp_metrics() == []
     assert await screener_io.fetch_krakenfutures_metrics() == []
+
+
+@pytest.mark.asyncio
+async def test_kraken_volume_prefers_volume_quote(monkeypatch):
+    """dif nit: volumeQuote (venue's own USD volume) wins; vol24h*last is
+    only the fallback."""
+    tickers = [
+        {"symbol": "PF_ETHUSD", "volumeQuote": "2500000",
+         "vol24h": "1000", "last": "3000"},
+        {"symbol": "PF_SOLUSD", "volumeQuote": "",
+         "vol24h": "2000", "last": "150"},
+    ]
+    monkeypatch.setattr(screener_io.aiohttp, "ClientSession",
+                        lambda: _Session(tickers, []))
+    metrics = await screener_io.fetch_krakenfutures_metrics()
+    by_base = {m.base: m for m in metrics}
+    assert by_base["ETH"].volume_24h_usd == pytest.approx(2_500_000)
+    assert by_base["SOL"].volume_24h_usd == pytest.approx(2000 * 150)

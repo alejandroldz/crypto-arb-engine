@@ -132,8 +132,13 @@ async def fetch_krakenfutures_metrics(history_limit: int = 720,
                 continue
             base, symbol = parsed
             try:
-                # kraken futures vol24h is in BASE units (BTC, PEPE...): convert
-                volume = float(t.get("vol24h", 0) or 0) * float(t.get("last", 0) or 0)
+                # dif nit: volumeQuote is the venue's own 24h USD volume.
+                # vol24h is in BASE units, so vol24h * last is only an
+                # approximation (up to ~6% off on illiquid perps).
+                volume = float(t.get("volumeQuote") or 0)
+                if volume <= 0:
+                    volume = (float(t.get("vol24h", 0) or 0)
+                              * float(t.get("last", 0) or 0))
             except (TypeError, ValueError):
                 volume = 0.0
             if volume < min_volume_usd or (bases is not None and base not in bases):
