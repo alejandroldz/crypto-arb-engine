@@ -19,6 +19,7 @@ def render(
     breaker: CircuitBreaker,
     open_positions: int,
     paper_pnl_usd: Decimal,
+    uta_line: str = "",
 ) -> Table:
     now_ns = time.monotonic_ns()
     table = Table(title="crypto-arb-engine (paper trading)")
@@ -44,6 +45,7 @@ def render(
         f"opportunities: {len(opportunities)} | open positions: {open_positions} | "
         f"paper PnL: {paper_pnl_usd} USD | breaker: "
         f"{'HALTED: ' + (breaker.halt_reason or '') if breaker.halted else 'ok'}"
+        + (f"\n{uta_line}" if uta_line else "")
     )
     return table
 

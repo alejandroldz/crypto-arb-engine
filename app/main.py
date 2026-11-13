@@ -44,7 +44,8 @@ from app.database.repository import Repository
 from app.engines.arbitrage import FundingOpportunity, detect_funding_carry
 from app.engines.monitor import MonitorAction, evaluate_carry
 from app.engines.paper_trader import PaperFill, PaperTrader
-from app.engines.risk import CarryPositionRisk, StalenessGate
+from app.engines.risk import CarryPositionRisk, StalenessGate, UtaAccountState
+from app.engines.validator import approve_unified_carry, uta_allocation
 from app.ui.cli_dashboard import print_opportunity, render
 from app.ui.notifier import TelegramNotifier
 
@@ -64,6 +65,8 @@ class OpenCarry:
     funding_collected: Decimal
     last_payment_ts: datetime | None
     accrual_uncertain: bool = False
+    uta: "UtaAccountState | None" = None
+    mmr_warned: bool = False
 
 
 async def run() -> None:
@@ -115,7 +118,31 @@ async def run() -> None:
     opportunities: deque[FundingOpportunity] = deque(maxlen=MAX_OPPORTUNITIES_KEPT)
     open_carries: dict[str, OpenCarry] = {}
     realized_pnl = Decimal("0")
-    notional = settings.target_quote_size_list[0]
+    unified = settings.account_margin_mode.strip().upper() == "UNIFIED"
+    base_asset = spot_symbols[0].split("/")[0]
+    coll_ratio = settings.collateral_ratio_for(base_asset)
+    uta_state = (
+        UtaAccountState(
+            equity=D(settings.paper_start_balance_usd),
+            utilization=D(settings.uta_capital_utilization_pct),
+            collateral_ratio=coll_ratio,
+            sim_mmr_rate=D(settings.sim_maintenance_margin_rate),
+        )
+        if unified
+        else None
+    )
+    # UNIFIED: one notional per leg from total equity; SPLIT: fixed quote size
+    notional = (
+        uta_allocation(D(settings.paper_start_balance_usd), D(settings.uta_capital_utilization_pct))[0]
+        if unified
+        else settings.target_quote_size_list[0]
+    )
+    max_safe_pump = (
+        uta_state.max_safe_pump_pct(D(settings.max_account_mmr_emergency_unwind))
+        if uta_state is not None
+        else None
+    )
+    last_mmr: Decimal | None = None
     spot_key_default = f"{spot_ex}:{spot_symbols[0]}"
 
     # --- restart recovery: rebuild open carries from SQLite ---
@@ -145,6 +172,7 @@ async def run() -> None:
             funding_collected=D(pos.funding_collected),
             last_payment_ts=None,  # unknown: first payment after restart is flagged
             accrual_uncertain=True,
+            uta=uta_state,
         )
         logger.info("recovered open position %s (%s)", pos.id, perp_key)
 
@@ -219,6 +247,15 @@ async def run() -> None:
                     and gate.is_fresh(books[perp_key], now_ns)
                 ):
                     continue
+                if uta_state is not None:
+                    gate = approve_unified_carry(
+                        collateral_ratio=coll_ratio,
+                        min_collateral_ratio=D(settings.min_collateral_ratio_required),
+                        max_safe_pump_pct=max_safe_pump,
+                    )
+                    if not gate.approved:
+                        logger.info("UTA gate rejected %s: %s", rate.symbol, gate.reason)
+                        continue
                 breaker.record_order()
                 breaker.record_order()
 
@@ -241,6 +278,7 @@ async def run() -> None:
                     risk=CarryPositionRisk.build(fill.perp_vwap, D("1")),
                     funding_collected=Decimal("0"),
                     last_payment_ts=rate.next_funding_ts,
+                    uta=uta_state,
                 )
                 logger.info(
                     "paper open %s %s notional %s rate %s projected %s",
@@ -261,7 +299,18 @@ async def run() -> None:
                     perp_book=books.get(carry.perp_key),
                     risk=carry.risk,
                     liquidation_buffer_pct=settings.liquidation_buffer_pct,
+                    uta=carry.uta,
+                    mmr_emergency=D(settings.max_account_mmr_emergency_unwind),
                 )
+                if decision.account_mmr is not None:
+                    last_mmr = decision.account_mmr
+                    if (
+                        decision.account_mmr >= D(settings.max_account_mmr_warning)
+                        and not carry.mmr_warned
+                    ):
+                        carry.mmr_warned = True
+                        logger.warning("account MMR warning %s: %s", key, decision.account_mmr)
+                        await notifier.send(f"MMR WARNING {key}: {decision.account_mmr}")
                 if decision.accrual_uncertain and not carry.accrual_uncertain:
                     carry.accrual_uncertain = True
                     logger.warning("funding accrual uncertain for %s (missed payments)", key)
@@ -273,6 +322,19 @@ async def run() -> None:
                 if decision.action is MonitorAction.UNWIND:
                     await close_carry(key, carry, decision.reason)
 
+            uta_line = ""
+            if uta_state is not None:
+                mmr_txt = f"{last_mmr * 100:.1f}%" if last_mmr is not None else "n/a"
+                pump_txt = (
+                    f"+{max_safe_pump * 100:.0f}%" if max_safe_pump is not None else "inf"
+                )
+                uta_line = (
+                    f"margin: UNIFIED {settings.uta_capital_utilization_pct * 100:.0f}% util | "
+                    f"{base_asset} ratio {coll_ratio * 100:.0f}% | "
+                    f"MMR {mmr_txt} (warn {settings.max_account_mmr_warning * 100:.0f}%, "
+                    f"unwind {settings.max_account_mmr_emergency_unwind * 100:.0f}%) | "
+                    f"max safe pump {pump_txt}"
+                )
             live.update(
                 render(
                     books,
@@ -281,6 +343,7 @@ async def run() -> None:
                     breaker,
                     len(open_carries),
                     realized_pnl,
+                    uta_line,
                 )
             )
             await asyncio.sleep(0.5)

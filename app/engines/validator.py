@@ -109,3 +109,40 @@ def approve_trade(net_profit: Decimal, min_net_profit_usd: Decimal) -> TradeAppr
         net_profit=net,
         reason="net profit above minimum" if approved else "net profit below minimum",
     )
+
+
+def uta_allocation(equity: Decimal, utilization: Decimal) -> tuple[Decimal, Decimal]:
+    """UNIFIED mode: one notional per leg + cash buffer.
+
+    ISOLATED_SPLIT would deploy only equity/2 per leg; UNIFIED deploys
+    equity*utilization per leg (e.g. 1000 -> 900/900 vs 500/500).
+    """
+    notional = mul(D(equity), D(utilization))
+    return notional, D(equity) - notional
+
+
+def approve_unified_carry(
+    *,
+    collateral_ratio: Decimal,
+    min_collateral_ratio: Decimal,
+    max_safe_pump_pct: Decimal | None,
+    min_safe_pump: Decimal = Decimal("0.80"),
+) -> TradeApproval:
+    """UTA entry gates: collateral quality + pump survival (spec 2.2.3).
+
+    max_safe_pump_pct None means no finite pump breaches the emergency MMR,
+    which trivially satisfies the minimum.
+    """
+    if D(collateral_ratio) < D(min_collateral_ratio):
+        return TradeApproval(
+            approved=False,
+            net_profit=ZERO,
+            reason=f"collateral ratio {collateral_ratio} < required {min_collateral_ratio}",
+        )
+    if max_safe_pump_pct is not None and D(max_safe_pump_pct) < D(min_safe_pump):
+        return TradeApproval(
+            approved=False,
+            net_profit=ZERO,
+            reason=f"max safe pump {max_safe_pump_pct} < required {min_safe_pump}",
+        )
+    return TradeApproval(approved=True, net_profit=ZERO, reason="uta gates ok")

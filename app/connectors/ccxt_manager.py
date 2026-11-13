@@ -7,6 +7,8 @@ endpoints are used here - no API keys required for ingestion.
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
+from decimal import Decimal
 import logging
 import time
 from datetime import datetime, timezone
@@ -128,3 +130,84 @@ class FundingPoller:
                 await asyncio.sleep(self.interval_s)
         finally:
             await ex.close()
+
+
+@dataclass(frozen=True)
+class AccountHealth:
+    """Real unified-account health read from an exchange (needs read-only keys)."""
+
+    exchange: str
+    total_equity: Decimal
+    total_margin_balance: Decimal
+    total_maintenance_margin: Decimal
+
+    @property
+    def account_mmr(self) -> Decimal:
+        if self.total_margin_balance <= 0:
+            return Decimal("1")
+        return self.total_maintenance_margin / self.total_margin_balance
+
+
+async def fetch_unified_account_health(
+    exchange_id: str, api_key: str, secret: str
+) -> AccountHealth | None:
+    """Real account MMR from private endpoints (read-only keys).
+
+    Returns None when keys are missing: paper mode then simulates account
+    health with UtaAccountState against live books (documented fallback).
+    Requires ccxt pro/async classes only for REST; closes the instance.
+    """
+    if not api_key or not secret:
+        return None
+    ex = getattr(ccxtpro, exchange_id)(
+        {"apiKey": api_key, "secret": secret, "enableRateLimit": True}
+    )
+    try:
+        if exchange_id == "deribit":
+            r = await ex.private_get_account_summary({"currency": "BTC"})
+            res = r.get("result", {})
+            return AccountHealth(
+                exchange=exchange_id,
+                total_equity=Decimal(str(res.get("equity", "0"))),
+                total_margin_balance=Decimal(str(res.get("margin_balance", "0"))),
+                total_maintenance_margin=Decimal(str(res.get("maintenance_margin", "0"))),
+            )
+        if exchange_id == "bybit":
+            # v5 UNIFIED account: equity/margin/MMR straight from the account
+            r = await ex.private_get_v5_account_info()
+            res = r.get("result") or {}
+            return AccountHealth(
+                exchange=exchange_id,
+                total_equity=Decimal(str(res.get("totalEquity", "0"))),
+                total_margin_balance=Decimal(str(res.get("totalMarginBalance", "0"))),
+                total_maintenance_margin=Decimal(str(res.get("totalMaintenanceMargin", "0"))),
+            )
+        if exchange_id == "krakenfutures":
+            r = await ex.private_get_accounts()
+            acc = (r.get("accounts") or {}).get("multi_collateral") or (
+                r.get("accounts") or {}
+            ).get("flex", {})
+            portfolio = Decimal(str(acc.get("portfolioValue", "0")))
+            mm = Decimal(str(acc.get("maintenanceMargin", "0")))
+            return AccountHealth(
+                exchange=exchange_id,
+                total_equity=portfolio,
+                total_margin_balance=portfolio,
+                total_maintenance_margin=mm,
+            )
+        return None  # venue not mapped: simulate instead
+    finally:
+        await ex.close()
+
+
+def fetch_collateral_ratio(
+    exchange_id: str, asset: str, fallback_map: dict[str, Decimal]
+) -> Decimal:
+    """Per-asset collateral value ratio.
+
+    Honest note: no ccxt exchange exposes collateral haircut tiers through a
+    public endpoint, and private variants differ per venue. The configured
+    haircut map (BTC 0.95, ETH 0.95, SOL 0.85, default 0.00) is the source
+    of truth, verifiable against the exchange docs.
+    """
+    return fallback_map.get(asset.strip().upper(), Decimal("0"))

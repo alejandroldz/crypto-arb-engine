@@ -26,8 +26,8 @@ class Settings(BaseSettings):
     # exchanges (ccxt ids)
     spot_exchanges: str = "kraken"
     spot_symbols: str = "BTC/USD"
-    perp_exchanges: str = "deribit,krakenfutures"
-    perp_symbols: str = "BTC-PERPETUAL,BTC/USD:USD"
+    perp_exchanges: str = "deribit,krakenfutures,bybit"
+    perp_symbols: str = "BTC-PERPETUAL,BTC/USD:USD,BTC/USD:BTC"
 
     # sizing / profitability
     target_quote_sizes: str = "100,500,1000"
@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     liquidity_haircut: Decimal = Decimal("0.50")
     # per-venue taker fees in bps (worst-case retail tier; user must verify
     # their own tier). kraken spot taker is far pricier than perp venues.
-    taker_fee_bps: str = "kraken:40,krakenfutures:5,deribit:5"
+    taker_fee_bps: str = "kraken:40,krakenfutures:5,deribit:5,bybit:5.5"
     default_taker_fee_bps: Decimal = Decimal("40")
     # minimum funding-rate history samples before approving a carry
     min_funding_history: int = 30
@@ -65,6 +65,24 @@ class Settings(BaseSettings):
     # paper trading
     paper_start_balance_usd: Decimal = Decimal("10000")
 
+    # unified trading account (cross-collateral portfolio margin)
+    account_margin_mode: str = "UNIFIED"  # UNIFIED | ISOLATED_SPLIT
+    uta_capital_utilization_pct: Decimal = Decimal("0.90")
+    collateral_haircut_map: str = "BTC:0.95,ETH:0.95,SOL:0.85"
+    min_collateral_ratio_required: Decimal = Decimal("0.80")
+    max_account_mmr_warning: Decimal = Decimal("0.65")
+    max_account_mmr_emergency_unwind: Decimal = Decimal("0.75")
+    # simulated perp maintenance-margin rate for paper UTA health; real MMR
+    # (~0.5%) can never reach the 75% emergency at 1x, so 25% keeps the
+    # emergency path exercisable (documented fallback, not exchange data)
+    sim_maintenance_margin_rate: Decimal = Decimal("0.25")
+
+    # optional read-only API keys for real account health (never trading)
+    krakenfutures_api_key: str = ""
+    krakenfutures_api_secret: str = ""
+    deribit_client_id: str = ""
+    deribit_client_secret: str = ""
+
     # telegram alerts
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
@@ -78,6 +96,11 @@ class Settings(BaseSettings):
         "liquidation_buffer_pct",
         "max_daily_loss_usd",
         "paper_start_balance_usd",
+        "uta_capital_utilization_pct",
+        "min_collateral_ratio_required",
+        "max_account_mmr_warning",
+        "max_account_mmr_emergency_unwind",
+        "sim_maintenance_margin_rate",
         mode="before",
     )
     @classmethod
@@ -117,6 +140,19 @@ class Settings(BaseSettings):
 
     def taker_fee_for(self, exchange: str) -> Decimal:
         return self.taker_fee_bps_map.get(exchange, self.default_taker_fee_bps)
+
+    @property
+    def collateral_ratio_map(self) -> dict[str, Decimal]:
+        out: dict[str, Decimal] = {}
+        for pair in self.collateral_haircut_map.split(","):
+            if ":" in pair:
+                asset, ratio = pair.split(":", 1)
+                out[asset.strip().upper()] = D(ratio.strip())
+        return out
+
+    def collateral_ratio_for(self, asset: str) -> Decimal:
+        # unknown assets get 0.00 collateral value: rejected in UNIFIED mode
+        return self.collateral_ratio_map.get(asset.strip().upper(), ZERO)
 
     @property
     def spot_symbol_list(self) -> list[str]:
