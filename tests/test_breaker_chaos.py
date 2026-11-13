@@ -91,3 +91,28 @@ def test_f32b_nonpositive_reservation_refused(tmp_path):
     assert b.reserve_orders(0) is False
     assert b.reserve_orders(-5) is False
     assert len(b._order_times) == 0
+
+
+@pytest.mark.asyncio
+async def test_f11_f12_repository_rejects_nonfinite(tmp_path):
+    from datetime import datetime, timezone
+    from decimal import Decimal
+
+    from app.database.repository import Repository
+    repo = Repository(f"sqlite+aiosqlite:///{tmp_path}/t.db")
+    await repo.init()
+    pid = await repo.open_position(
+        qty_base="0.01", notional="500", spot_entry_vwap="50000",
+        perp_entry_vwap="50000", symbol="BTC/USD:USD",
+        exchange_spot="kraken", exchange_perp="krakenfutures",
+    )
+    with pytest.raises(ValueError, match="finite"):
+        await repo.close_position(pid, Decimal("NaN"), datetime.now(timezone.utc))
+    with pytest.raises(ValueError, match="finite"):
+        await repo.add_funding(pid, Decimal("Infinity"))
+    with pytest.raises(ValueError, match="finite"):
+        await repo.open_position(
+            qty_base="Infinity", notional="500", spot_entry_vwap="50000",
+            perp_entry_vwap="50000", symbol="BTC/USD:USD",
+            exchange_spot="kraken", exchange_perp="krakenfutures",
+        )

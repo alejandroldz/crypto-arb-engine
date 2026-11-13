@@ -16,6 +16,16 @@ from app.database.models import Base, OrderRecord, Position, TaxAuditLog
 logger = logging.getLogger(__name__)
 
 
+def _finite(value, name: str) -> Decimal:
+    """fuzz F11/F12: the repository is the LAST line of defense. DecimalString
+    persists str(Decimal), so NaN/Infinity would round-trip silently and then
+    crash seed_daily_pnl at the next startup. Reject at the boundary."""
+    d = D(value)
+    if not d.is_finite():
+        raise ValueError(f"{name} must be finite, got {d!r}")
+    return d
+
+
 class Repository:
     def __init__(self, sqlite_url: str):
         self._engine = create_async_engine(sqlite_url)
@@ -31,10 +41,10 @@ class Repository:
     async def open_position(self, **fields) -> int:
         async with self._session() as s:
             pos = Position(
-                qty_base=D(fields["qty_base"]),
-                notional=D(fields["notional"]),
-                spot_entry_vwap=D(fields["spot_entry_vwap"]),
-                perp_entry_vwap=D(fields["perp_entry_vwap"]),
+                qty_base=_finite(fields["qty_base"], "qty_base"),
+                notional=_finite(fields["notional"], "notional"),
+                spot_entry_vwap=_finite(fields["spot_entry_vwap"], "spot_entry_vwap"),
+                perp_entry_vwap=_finite(fields["perp_entry_vwap"], "perp_entry_vwap"),
                 symbol=fields["symbol"],
                 exchange_spot=fields["exchange_spot"],
                 exchange_perp=fields["exchange_perp"],
@@ -55,7 +65,7 @@ class Repository:
                 raise KeyError(f"position {position_id} not found")
             pos.status = "closed"
             pos.closed_at = closed_at
-            pos.realized_pnl_usd = D(realized_pnl_usd)
+            pos.realized_pnl_usd = _finite(realized_pnl_usd, "realized_pnl_usd")
             await s.commit()
 
     async def add_funding(self, position_id: int, amount: Decimal) -> None:
@@ -63,7 +73,8 @@ class Repository:
             pos = await s.get(Position, position_id)
             if pos is None:
                 raise KeyError(f"position {position_id} not found")
-            pos.funding_collected = D(pos.funding_collected) + D(amount)
+            amount = _finite(amount, "funding amount")
+            pos.funding_collected = D(pos.funding_collected) + amount
             await s.commit()
 
     async def entry_fees(self, position_id: int) -> Decimal:
@@ -86,9 +97,9 @@ class Repository:
             leg=fields["leg"],
             action=fields["action"],
             side=fields["side"],
-            qty_base=D(fields["qty_base"]),
-            vwap=D(fields["vwap"]),
-            fee=D(fields["fee"]),
+            qty_base=_finite(fields["qty_base"], "qty_base"),
+            vwap=_finite(fields["vwap"], "vwap"),
+            fee=_finite(fields["fee"], "fee"),
             fee_currency=fields["fee_currency"],
             kind=fields.get("kind", "paper"),
         )
@@ -120,10 +131,10 @@ class Repository:
         a single recorded leg."""
         async with self._session() as s:
             pos = Position(
-                qty_base=D(position_fields["qty_base"]),
-                notional=D(position_fields["notional"]),
-                spot_entry_vwap=D(position_fields["spot_entry_vwap"]),
-                perp_entry_vwap=D(position_fields["perp_entry_vwap"]),
+                qty_base=_finite(position_fields["qty_base"], "qty_base"),
+                notional=_finite(position_fields["notional"], "notional"),
+                spot_entry_vwap=_finite(position_fields["spot_entry_vwap"], "spot_entry_vwap"),
+                perp_entry_vwap=_finite(position_fields["perp_entry_vwap"], "perp_entry_vwap"),
                 symbol=position_fields["symbol"],
                 exchange_spot=position_fields["exchange_spot"],
                 exchange_perp=position_fields["exchange_perp"],
@@ -157,7 +168,7 @@ class Repository:
                 raise KeyError(f"position {position_id} not found")
             pos.status = "closed"
             pos.closed_at = closed_at
-            pos.realized_pnl_usd = D(realized_pnl_usd)
+            pos.realized_pnl_usd = _finite(realized_pnl_usd, "realized_pnl_usd")
             for f in orders:
                 s.add(self._order_row({**f, "position_id": position_id}))
             for f in audits:
