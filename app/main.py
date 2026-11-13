@@ -293,13 +293,15 @@ async def run() -> None:
                 ):
                     continue
                 if uta_state is not None:
-                    gate = approve_unified_carry(
+                    # NOTE: never reuse the name `gate` here - it is the
+                    # StalenessGate used above for every candidate.
+                    uta_gate = approve_unified_carry(
                         collateral_ratio=coll_ratio,
                         min_collateral_ratio=D(settings.min_collateral_ratio_required),
                         max_safe_pump_pct=max_safe_pump,
                     )
-                    if not gate.approved:
-                        logger.info("UTA gate rejected %s: %s", rate.symbol, gate.reason)
+                    if not uta_gate.approved:
+                        logger.info("UTA gate rejected %s: %s", rate.symbol, uta_gate.reason)
                         continue
                 breaker.record_order()
                 breaker.record_order()
@@ -336,25 +338,33 @@ async def run() -> None:
                 )
 
             # real account health (read-only keys); simulated UTA is the fallback
-            if settings.krakenfutures_api_key and time.monotonic() - last_health_check > 60:
+            health_venues = []
+            if settings.krakenfutures_api_key:
+                health_venues.append(
+                    ("krakenfutures", settings.krakenfutures_api_key,
+                     settings.krakenfutures_api_secret, "", "")
+                )
+            if settings.okx_api_key:
+                health_venues.append(
+                    ("okx", settings.okx_api_key, settings.okx_api_secret,
+                     settings.okx_api_passphrase, settings.okx_hostname)
+                )
+            if health_venues and time.monotonic() - last_health_check > 60:
                 last_health_check = time.monotonic()
-                try:
-                    health = await fetch_unified_account_health(
-                        "krakenfutures",
-                        settings.krakenfutures_api_key,
-                        settings.krakenfutures_api_secret,
-                    )
-                except Exception as exc:
-                    health = None
-                    logger.warning("account health fetch failed: %s", exc)
-                if health is not None:
-                    logger.info(
-                        "real account health %s: equity %s mmr %s",
-                        health.exchange, health.total_equity, health.account_mmr,
-                    )
-                    if health.account_mmr >= D(settings.max_account_mmr_emergency_unwind):
-                        logger.warning("REAL account MMR %s >= emergency", health.account_mmr)
-                        await notifier.send(f"REAL MMR EMERGENCY: {health.account_mmr}")
+                for hv, hk, hs, hp, hh in health_venues:
+                    try:
+                        health = await fetch_unified_account_health(hv, hk, hs, hp, hh)
+                    except Exception as exc:
+                        health = None
+                        logger.warning("account health fetch %s failed: %s", hv, exc)
+                    if health is not None:
+                        logger.info(
+                            "real account health %s: equity %s mmr %s",
+                            health.exchange, health.total_equity, health.account_mmr,
+                        )
+                        if health.account_mmr >= D(settings.max_account_mmr_emergency_unwind):
+                            logger.warning("REAL account MMR %s >= emergency", health.account_mmr)
+                            await notifier.send(f"REAL MMR EMERGENCY: {health.account_mmr}")
             for key, carry in list(open_carries.items()):
                 decision = evaluate_carry(
                     qty_base=carry.fill.qty_base,

@@ -28,7 +28,9 @@ def test_okx_is_principal_second_venue():
     s = Settings()
     assert s.perp_exchange_list[:2] == ["krakenfutures", "okx"]
     i = s.perp_exchange_list.index("okx")
-    assert s.perp_symbol_list[i] == "BTC/USD:BTC"  # inverse perp, USD-quoted
+    # OKX EU X-Perp: linear USD-margined 5y expiry future with 8h funding
+    # (BTC-USD_UM_XPERP-310404), not the global inverse swap BTC/USD:BTC
+    assert s.perp_symbol_list[i] == "BTC/USD:USD-310404"
     assert s.taker_fee_for("okx") == 5
 
 

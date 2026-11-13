@@ -27,7 +27,10 @@ class Settings(BaseSettings):
     spot_exchanges: str = "kraken"
     spot_symbols: str = "BTC/USD"
     perp_exchanges: str = "krakenfutures,okx,deribit"
-    perp_symbols: str = "BTC/USD:USD,BTC/USD:BTC,BTC-PERPETUAL"
+    # OKX EU (MiFID, OKX Europe Malta) serves X-Perps: 5-year linear USD-
+    # margined expiry futures with perp-style 8h funding, NOT the global
+    # inverse swap BTC/USD:BTC. ccxt symbol for BTC-USD_UM_XPERP-310404:
+    perp_symbols: str = "BTC/USD:USD,BTC/USD:USD-310404,BTC-PERPETUAL"
 
     # sizing / profitability
     target_quote_sizes: str = "100,500,1000"
@@ -85,6 +88,9 @@ class Settings(BaseSettings):
     okx_api_key: str = ""
     okx_api_secret: str = ""
     okx_api_passphrase: str = ""
+    # OKX Europe (MiFID entity) keys live on my.okx.com, not www.okx.com
+    # (verified live 2026-11-13: www returns 50119 "API key doesn't exist")
+    okx_hostname: str = "my.okx.com"
 
     # telegram alerts
     telegram_bot_token: str = ""

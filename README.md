@@ -48,6 +48,28 @@ unverified, user's responsibility. Bybit geo-blocks some jurisdictions at
 the CDN level (observed); enable it only after confirming reachability from
 your own IP (`PERP_EXCHANGES`).
 
+OKX EU (verified live 2026-11-13 against a real OKX Europe account):
+EEA accounts trade **X-Perps** (`BTC-USD_UM_XPERP-310404`, ccxt
+`BTC/USD:USD-310404`): 5-year linear USD-margined expiry futures with
+perp-style 8h funding (00/08/16 UTC), ruleType `xperp`. The global inverse
+swap `BTC/USD:BTC` is not the MiFID product. EU API keys live on host
+`my.okx.com` (www.okx.com returns 50119 for them) - set `OKX_HOSTNAME`.
+API trading of X-Perps requires passing the appropriateness assessment and
+accepting the X-Perp risk disclosure in the OKX web/app first.
+
+## UTA paper-mode assumption
+
+The unified-margin simulation uses ONE `UtaAccountState` holding the full
+paper balance and sizes every carry at the configured utilization,
+regardless of which venue the short leg is on. That model is realistic only
+when spot collateral and the short live in the same account (e.g. Kraken
+spot + Kraken Futures multi-collateral, or OKX spot + OKX X-Perp in one
+unified account). It does NOT model cross-venue collateral: BTC sitting on
+Kraken cannot margin an OKX short in reality. Paper results at 90%
+utilization therefore demonstrate single-venue UTA economics, not a
+cross-venue 90% deployment. Cross-venue carries would need split collateral
+and lower effective utilization.
+
 ## Quickstart
 
 ```bash

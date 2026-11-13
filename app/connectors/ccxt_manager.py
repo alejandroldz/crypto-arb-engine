@@ -24,14 +24,43 @@ BOOKS_TOPIC = "books"
 FUNDING_TOPIC = "funding"
 
 
-def normalize_book(exchange_id: str, symbol: str, raw: dict) -> L2OrderBook:
+def _contract_base_qty(qty, price, market: dict | None) -> str:
+    """Convert a raw book amount to BASE-currency quantity.
+
+    ccxt leaves derivative book amounts in the venue's native unit: contracts
+    (okx: contractSize base units per contract for linear, quote for inverse),
+    USD for deribit inverse perps, base units already for krakenfutures.
+    Spot markets and unit-sized contracts pass through unchanged.
+    """
+    q = Decimal(str(qty))
+    if not market:
+        return str(q)
+    cs = market.get("contractSize")
+    if not cs or not market.get("contract"):
+        return str(q)
+    cs = Decimal(str(cs))
+    if market.get("linear"):
+        return str(q * cs)
+    p = Decimal(str(price))
+    return str(q * cs / p)  # inverse: contract worth `cs` quote units
+
+
+def normalize_book(
+    exchange_id: str, symbol: str, raw: dict, market: dict | None = None
+) -> L2OrderBook:
     """ccxt order book payload -> canonical L2OrderBook."""
     ts_ms = raw.get("timestamp")
     return L2OrderBook(
         exchange=exchange_id,
         symbol=symbol,
-        bids=tuple(OrderBookLevel(price=str(p), qty=str(q)) for p, q, *_ in raw["bids"]),
-        asks=tuple(OrderBookLevel(price=str(p), qty=str(q)) for p, q, *_ in raw["asks"]),
+        bids=tuple(
+            OrderBookLevel(price=str(p), qty=_contract_base_qty(q, p, market))
+            for p, q, *_ in raw["bids"]
+        ),
+        asks=tuple(
+            OrderBookLevel(price=str(p), qty=_contract_base_qty(q, p, market))
+            for p, q, *_ in raw["asks"]
+        ),
         exchange_ts=(
             datetime.fromtimestamp(ts_ms / 1000, tz=timezone.utc) if ts_ms else None
         ),
@@ -72,6 +101,14 @@ class BookFeed:
 
     async def run(self, bus: EventBus, stop: asyncio.Event) -> None:
         ex = getattr(ccxtpro, self.exchange_id)({"enableRateLimit": True})
+        # market metadata (contractSize/linear) converts contract-denominated
+        # book amounts to base units before engines see them
+        markets = {}
+        try:
+            await ex.load_markets()
+            markets = {s: ex.market(s) for s in self.symbols}
+        except Exception as exc:
+            logger.warning("market meta %s: %s", self.exchange_id, exc)
         # NOTE: no ex.number = str here: ccxt.pro order-book maintenance does
         # arithmetic on prices (-price), which breaks on strings. normalize_book
         # stringifies floats via repr, which is exact for Decimal parsing.
@@ -83,21 +120,22 @@ class BookFeed:
                     try:
                         raw = await ex.watch_order_book(symbol)
                         bus.publish(
-                            BOOKS_TOPIC, normalize_book(self.exchange_id, symbol, raw)
+                            BOOKS_TOPIC,
+                            normalize_book(self.exchange_id, symbol, raw, markets.get(symbol)),
                         )
                         self.last_error = None
                     except Exception as exc:  # ccxt NetworkError/ExchangeError
                         self.last_error = f"{type(exc).__name__}: {exc}"
                         logger.warning("book feed %s %s: %s", self.exchange_id, symbol, self.last_error)
-                        await self._rest_once(ex, bus, symbol)
+                        await self._rest_once(ex, bus, symbol, markets.get(symbol))
                         await asyncio.sleep(self.rest_backoff_s)
         finally:
             await ex.close()
 
-    async def _rest_once(self, ex, bus: EventBus, symbol: str) -> None:
+    async def _rest_once(self, ex, bus: EventBus, symbol: str, market=None) -> None:
         try:
             raw = await ex.fetch_order_book(symbol)
-            bus.publish(BOOKS_TOPIC, normalize_book(self.exchange_id, symbol, raw))
+            bus.publish(BOOKS_TOPIC, normalize_book(self.exchange_id, symbol, raw, market))
         except Exception as exc:
             self.last_error = f"{type(exc).__name__}: {exc}"
 
@@ -150,7 +188,11 @@ class AccountHealth:
 
 
 async def fetch_unified_account_health(
-    exchange_id: str, api_key: str, secret: str
+    exchange_id: str,
+    api_key: str,
+    secret: str,
+    password: str = "",
+    hostname: str = "",
 ) -> AccountHealth | None:
     """Real account MMR from private endpoints (read-only keys).
 
@@ -160,9 +202,13 @@ async def fetch_unified_account_health(
     """
     if not api_key or not secret:
         return None
-    ex = getattr(ccxtpro, exchange_id)(
-        {"apiKey": api_key, "secret": secret, "enableRateLimit": True}
-    )
+    cfg = {"apiKey": api_key, "secret": secret, "enableRateLimit": True}
+    if password:
+        cfg["password"] = password
+    ex = getattr(ccxtpro, exchange_id)(cfg)
+    if hostname:
+        # e.g. OKX Europe (MiFID) keys live on my.okx.com, not www.okx.com
+        ex.hostname = hostname
     try:
         if exchange_id == "deribit":
             r = await ex.private_get_account_summary({"currency": "BTC"})
@@ -175,12 +221,11 @@ async def fetch_unified_account_health(
             )
         if exchange_id == "okx":
             # v5 unified account: totalEq/adjEq; mgnRatio = adjEq/MM (OKX
-            # inverts the spec's MMR). Field names per v5 docs; verify
-            # against the real read-only key when it arrives.
+            # inverts the spec's MMR). Empty account: mgnRatio is "".
             r = await ex.private_get_account_balance()
             data = (r.get("data") or [{}])[0]
-            adj_eq = Decimal(str(data.get("adjEq", "0")))
-            mgn_ratio = Decimal(str(data.get("mgnRatio", "0")))
+            adj_eq = Decimal(str(data.get("adjEq") or "0"))
+            mgn_ratio = Decimal(str(data.get("mgnRatio") or "0"))
             mm = adj_eq / mgn_ratio if mgn_ratio > 0 else Decimal("0")
             return AccountHealth(
                 exchange=exchange_id,
