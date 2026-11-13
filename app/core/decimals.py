@@ -6,7 +6,7 @@ string, int or another Decimal. ``float`` is rejected at the boundary by
 """
 from __future__ import annotations
 
-from decimal import ROUND_DOWN, ROUND_HALF_UP, ROUND_UP, Decimal, localcontext
+from decimal import ROUND_DOWN, ROUND_HALF_UP, ROUND_UP, Decimal, InvalidOperation, localcontext
 from typing import Union
 
 DecimalInput = Union[str, int, Decimal]
@@ -41,7 +41,12 @@ def D(value: DecimalInput) -> Decimal:
     if isinstance(value, int):
         return Decimal(value)
     if isinstance(value, str):
-        return Decimal(value.strip())
+        try:
+            return Decimal(value.strip())
+        except InvalidOperation as exc:
+            # fuzz F26: callers guard with `except ValueError`; an unparseable
+            # string must not escape as a raw decimal.InvalidOperation
+            raise ValueError(f"cannot parse {value!r} as Decimal") from exc
     raise TypeError(f"unsupported Decimal input type: {type(value)!r}")
 
 

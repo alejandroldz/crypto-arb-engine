@@ -75,3 +75,13 @@ def test_target_quote_sizes_empty_or_nonpositive():
         Settings(target_quote_sizes="").target_quote_size_list
     with pytest.raises(ValueError, match="target_quote_sizes"):
         Settings(target_quote_sizes="0,-5").target_quote_size_list
+
+
+def test_D_bad_string_raises_valueerror():
+    import pytest
+
+    from app.core.decimals import D
+    for bad in ("", "..", "abc", "0,5", "1 2"):
+        with pytest.raises(ValueError):
+            D(bad)
+    assert D(" 1.5 ") == D("1.5")

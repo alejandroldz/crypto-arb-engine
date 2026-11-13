@@ -742,3 +742,5 @@ _duckdb.ResourceInUseException: Resource In Use Error: connection is busy with a
 2026-11-13 22:11:45,598 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007131817901248971 vs polled mean -0.000006464669462164352941176470588 - entries quarantined
 2026-11-13 22:12:02,721 main INFO real account health krakenfutures: equity 0 mmr 0
 2026-11-13 22:12:03,364 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 22:12:16,712 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007131817901248971 vs polled mean -0.000006349000611869634615384615385 - entries quarantined
+2026-11-13 22:12:47,627 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007131817901248971 vs polled mean -0.000006237702301698150943396226415 - entries quarantined
