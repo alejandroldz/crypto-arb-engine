@@ -18,7 +18,7 @@ def render(
     opportunities: list[FundingOpportunity],
     breaker: CircuitBreaker,
     open_positions: int,
-    paper_pnl_eur: Decimal,
+    paper_pnl_usd: Decimal,
 ) -> Table:
     now_ns = time.monotonic_ns()
     table = Table(title="crypto-arb-engine (paper trading)")
@@ -42,7 +42,7 @@ def render(
         )
     table.caption = (
         f"opportunities: {len(opportunities)} | open positions: {open_positions} | "
-        f"paper PnL: {paper_pnl_eur} EUR | breaker: "
+        f"paper PnL: {paper_pnl_usd} USD | breaker: "
         f"{'HALTED: ' + (breaker.halt_reason or '') if breaker.halted else 'ok'}"
     )
     return table
