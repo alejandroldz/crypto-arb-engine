@@ -46,7 +46,10 @@ class Settings(BaseSettings):
     liquidity_haircut: Decimal = Decimal("0.50")
     # per-venue taker fees in bps (worst-case retail tier; user must verify
     # their own tier). kraken spot taker is far pricier than perp venues.
-    taker_fee_bps: str = "kraken:40,krakenfutures:5,bybit:5.5,okx:5"
+    # verified 2026-11-13 against official pages (tier base, volumen 0):
+    # kraken spot taker 0.80% (kraken.com/pro/fees, Tier 1 - lo subieron de 0.40%),
+    # krakenfutures 0.05%, okx perps 0.05% (okx.com/fees, regular user)
+    taker_fee_bps: str = "kraken:80,krakenfutures:5,bybit:5.5,okx:5"
     default_taker_fee_bps: Decimal = Decimal("40")
     # minimum funding-rate history samples before approving a carry
     min_funding_history: int = 30

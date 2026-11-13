@@ -11,7 +11,7 @@ def test_bybit_supported_but_not_in_default_pair():
 
 def test_per_venue_taker_fees():
     s = Settings()
-    assert s.taker_fee_for("kraken") == 40
+    assert s.taker_fee_for("kraken") == 80  # kraken pro spot tier 1 real (2026-11)
     assert s.taker_fee_for("krakenfutures") == 5
     assert s.taker_fee_for("bybit") == s.taker_fee_bps_map["bybit"]
 

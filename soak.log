@@ -1,0 +1,13 @@
+                       crypto-arb-engine (paper trading)                        
+┏━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┓
+┃ Feed          ┃ Symbol             ┃ Best bid ┃ Best ask / rate     ┃ Age ms ┃
+┡━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━┩
+│ kraken        │ BTC/USD            │ 69277.3  │ 69277.4             │ 8      │
+│ krakenfutures │ BTC/USD:USD        │ 69290.0  │ 69291.0             │ 9      │
+│ okx           │ BTC/USD:USD-310404 │ 69273.8  │ 69273.9             │ 17     │
+│ krakenfutures │ BTC/USD:USD        │ funding  │ 0.0000131478000589… │ 8622   │
+│ okx           │ BTC/USD:USD-310404 │ funding  │ 0.0001000000000000  │ 2599   │
+└───────────────┴────────────────────┴──────────┴─────────────────────┴────────┘
+     opportunities: 0 | open positions: 0 | paper PnL: 0 USD | breaker: ok      
+margin: UNIFIED 90% util | BTC ratio 95% | MMR n/a (warn 65%, unwind 75%) | max 
+                                safe pump +190%                                 

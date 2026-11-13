@@ -127,7 +127,8 @@ async def run() -> None:
         repo,
         latency_ms=settings.dry_run_latency_ms,
         spot_taker_fee_bps=settings.taker_fee_for(settings.spot_exchange_list[0]),
-        perp_taker_fee_bps=settings.default_taker_fee_bps,
+        # both supported perp venues are 5bps taker (krakenfutures/okx tier base)
+        perp_taker_fee_bps=settings.taker_fee_for(settings.perp_exchange_list[0]),
         slippage_buffer_bps=settings.slippage_buffer_bps,
         liquidity_haircut=settings.liquidity_haircut,
     )
