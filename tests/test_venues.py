@@ -85,3 +85,28 @@ def test_D_bad_string_raises_valueerror():
         with pytest.raises(ValueError):
             D(bad)
     assert D(" 1.5 ") == D("1.5")
+
+
+def test_target_quote_sizes_upper_bound():
+    import pytest
+
+    from app.core.config import Settings
+    with pytest.raises(ValueError, match="target_quote_sizes"):
+        Settings(target_quote_sizes="100,1e999999").target_quote_size_list
+
+
+def test_vwap_rejects_nan_size():
+    import pytest
+
+    from app.connectors.normalizer import L2OrderBook, OrderBookLevel
+    from app.engines.liquidity import vwap_for_base, vwap_for_quote
+    book = L2OrderBook(
+        exchange="t", symbol="X/USD",
+        bids=(OrderBookLevel(price="100", qty="10"),),
+        asks=(OrderBookLevel(price="101", qty="10"),),
+        local_ts_ns=1,
+    )
+    with pytest.raises(ValueError, match="finite"):
+        vwap_for_quote(book, "sell", "NaN", "0")
+    with pytest.raises(ValueError, match="finite"):
+        vwap_for_base(book, "sell", "NaN", "0")

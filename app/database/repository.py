@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import csv
+import logging
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
@@ -11,6 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.core.decimals import D
 from app.database.models import Base, OrderRecord, Position, TaxAuditLog
+
+logger = logging.getLogger(__name__)
 
 
 class Repository:
@@ -237,7 +240,19 @@ class Repository:
                     )
                 )
             ).scalars().all()
-        return sum((D(r.realized_pnl_usd) for r in rows), D("0"))
+        # fuzz F30: a poisoned row (e.g. 'NaN' TEXT) must not crash startup
+        # (seed_daily_pnl) or poison the daily limit - skip it loudly.
+        total = D("0")
+        for r in rows:
+            pnl = D(r.realized_pnl_usd)
+            if pnl.is_finite():
+                total += pnl
+            else:
+                logger.error(
+                    "realized_pnl_since: non-finite pnl row %s ignored (%r)",
+                    r.id, r.realized_pnl_usd,
+                )
+        return total
 
     async def open_positions(self) -> list[Position]:
         async with self._session() as s:

@@ -63,6 +63,8 @@ def vwap_for_quote(
     """VWAP to trade ``quote_size`` of quote currency (e.g. 500 EUR of BTC)."""
     quote_size = D(quote_size)
     haircut = D(haircut)
+    if not quote_size.is_finite():
+        raise ValueError(f"quote_size must be finite, got {quote_size!r}")
     levels = _levels(book, side)
     depth = book_depth_quote(levels)
 
@@ -112,6 +114,8 @@ def vwap_for_base(
     """VWAP to trade ``base_qty`` of base currency (e.g. sell 0.01 BTC)."""
     base_qty = D(base_qty)
     haircut = D(haircut)
+    if not base_qty.is_finite():
+        raise ValueError(f"base_qty must be finite, got {base_qty!r}")
     levels = _levels(book, side)
     depth = book_depth_quote(levels)
 

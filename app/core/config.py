@@ -386,8 +386,11 @@ class Settings(BaseSettings):
         if not sizes:
             raise ValueError("target_quote_sizes must name at least one size")
         for s in sizes:
-            if not s.is_finite() or s <= ZERO:
-                raise ValueError(f"target_quote_sizes: {s} must be positive and finite")
+            # fuzz F31: '1e999999' is finite but explodes downstream mul()
+            if not s.is_finite() or s <= ZERO or s > Decimal("1e9"):
+                raise ValueError(
+                    f"target_quote_sizes: {s} outside (0, 1e9]"
+                )
         return sizes
 
 

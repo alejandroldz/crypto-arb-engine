@@ -72,3 +72,22 @@ def test_f18_nonfinite_pnl_rejected(tmp_path):
     assert b._daily_pnl_usd == Decimal("0")
     with pytest.raises(ValueError, match="finite"):
         b.seed_daily_pnl(Decimal("Infinity"))
+
+
+def test_f28_f29_nonfinite_daily_pnl_on_disk_fails_closed(tmp_path):
+    for bad in ("NaN", "Infinity", "-Infinity"):
+        path = tmp_path / "breaker_state.json"
+        path.write_text(json.dumps({
+            "halted": False, "halt_reason": None, "consecutive_failures": 0,
+            "day": datetime.now(timezone.utc).date().isoformat(),
+            "daily_pnl_usd": bad,
+        }))
+        b = _breaker(tmp_path)
+        assert b.halted is True, bad
+
+
+def test_f32b_nonpositive_reservation_refused(tmp_path):
+    b = _breaker(tmp_path)
+    assert b.reserve_orders(0) is False
+    assert b.reserve_orders(-5) is False
+    assert len(b._order_times) == 0

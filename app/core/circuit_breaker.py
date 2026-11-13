@@ -49,7 +49,13 @@ class CircuitBreaker:
                 self._consecutive_failures = int(st.get("consecutive_failures", 0))
                 self._day = str(st.get("day", ""))
                 if self._day == self._today():
-                    self._daily_pnl_usd = D(st.get("daily_pnl_usd", "0"))
+                    pnl = D(st.get("daily_pnl_usd", "0"))
+                    # fuzz F28/F29: NaN/Infinity on disk would either crash
+                    # the next record or silently defeat the daily limit.
+                    # Raising here hits the fail-closed handler below.
+                    if not pnl.is_finite():
+                        raise ValueError(f"non-finite daily_pnl_usd {pnl!r}")
+                    self._daily_pnl_usd = pnl
                 if self.halted:
                     logger.warning(
                         "breaker restored HALT from disk: %s", self.halt_reason
@@ -154,6 +160,8 @@ class CircuitBreaker:
         persisted a HALT although no real order was sent. Now a failed
         reservation consumes nothing and does not halt.
         """
+        if n <= 0:
+            return False  # fuzz F32b: a non-positive reservation is nonsense
         now = time.monotonic()
         while self._order_times and now - self._order_times[0] > self.window_seconds:
             self._order_times.popleft()

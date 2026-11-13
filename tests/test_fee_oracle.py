@@ -70,3 +70,41 @@ async def test_detected_fees_used_in_economics(tmp_path):
     assert s.taker_fee_for("kraken") == D("80")
     assert s.entry_fee_for("kraken") == D("40")   # maker entry
     assert s.entry_fee_for("okx") == D("2")
+"""fuzz F20/F30: fee oracle admission control."""
+from decimal import Decimal
+
+import pytest
+
+from app.engines.fee_oracle import FeeQuote, fee_plausible
+
+
+def test_fee_plausible_bounds():
+    assert fee_plausible(Decimal("2"), Decimal("5"))
+    assert fee_plausible(Decimal("-1"), Decimal("5"))  # maker rebate
+    for bad_m, bad_t in [
+        (Decimal("NaN"), Decimal("5")),
+        (Decimal("5"), Decimal("Infinity")),
+        (Decimal("-200"), Decimal("5")),
+        (Decimal("5"), Decimal("5000")),
+    ]:
+        assert not fee_plausible(bad_m, bad_t)
+
+
+@pytest.mark.asyncio
+async def test_nan_fee_from_fetcher_falls_back_to_config(tmp_path):
+    from app.core.config import Settings
+    settings = Settings(
+        spot_exchanges="kraken", perp_exchanges="krakenfutures",
+        default_taker_fee_bps=Decimal("5"),
+    )
+    from app.engines.fee_oracle import FeeOracle
+    oracle = FeeOracle(settings, state_path=str(tmp_path / "fees.json"))
+
+    async def bad_fetch():
+        return Decimal("NaN"), Decimal("5")
+
+    out = await oracle.refresh({"krakenfutures": bad_fetch})
+    assert out["krakenfutures"].source == "config"
+    assert out["krakenfutures"].taker_bps == Decimal("5")
+    # and the NaN was NOT persisted to the state file
+    assert "NaN" not in (tmp_path / "fees.json").read_text()

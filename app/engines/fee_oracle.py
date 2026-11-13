@@ -101,6 +101,20 @@ async def fetch_kraken_spot_fee(api_key: str, api_secret: str) -> tuple[Decimal,
         await client.close()
 
 
+_MIN_FEE_BPS = D("-100")   # rebates exist; beyond this is garbage
+_MAX_FEE_BPS = D("1000")   # 10% per trade: no real venue charges that
+
+
+def fee_plausible(maker: Decimal, taker: Decimal) -> bool:
+    """fuzz F20/F30: a NaN/Infinity/absurd fee must never be admitted - it
+    poisons fills, the ledger and (via seed_daily_pnl) engine startup."""
+    return (
+        maker.is_finite() and taker.is_finite()
+        and _MIN_FEE_BPS <= maker <= _MAX_FEE_BPS
+        and _MIN_FEE_BPS <= taker <= _MAX_FEE_BPS
+    )
+
+
 class FeeOracle:
     def __init__(self, settings, state_path: str = "fees_state.json") -> None:
         self.settings = settings
@@ -140,15 +154,22 @@ class FeeOracle:
             fetch = fetchers.get(venue)
             if fetch is None:
                 prev = cached.get(venue)
+                prev_ok = False
                 if prev is not None:
-                    out[venue] = FeeQuote(
-                        D(prev["maker_bps"]), D(prev["taker_bps"]), "cache"
-                    )
+                    try:
+                        pq = FeeQuote(D(prev["maker_bps"]), D(prev["taker_bps"]), "cache")
+                        prev_ok = fee_plausible(pq.maker_bps, pq.taker_bps)
+                    except (ValueError, KeyError, ArithmeticError):
+                        prev_ok = False
+                if prev_ok:
+                    out[venue] = pq
                     logger.info(
                         "fees %s: maker %s bps, taker %s bps (cache, sin fetcher)",
                         venue, prev["maker_bps"], prev["taker_bps"],
                     )
                 else:
+                    if prev is not None:
+                        logger.error("fees %s: cached values invalid, ignored", venue)
                     out[venue] = FeeQuote(
                         self.settings.maker_fee_bps_map.get(
                             venue, self.settings.default_taker_fee_bps),
@@ -160,6 +181,8 @@ class FeeOracle:
                 continue
             try:
                 maker, taker = await fetch()
+                if not fee_plausible(maker, taker):
+                    raise ValueError(f"implausible fees {maker}/{taker} bps")
                 quote = FeeQuote(maker, taker, "api")
                 prev = cached.get(venue)
                 if prev is not None:
@@ -178,8 +201,13 @@ class FeeOracle:
                 }
             except Exception as exc:  # network/permission: degrade, don't die
                 prev = cached.get(venue)
-                if prev is not None:
-                    quote = FeeQuote(D(prev["maker_bps"]), D(prev["taker_bps"]), "cache")
+                try:
+                    cq = FeeQuote(D(prev["maker_bps"]), D(prev["taker_bps"]), "cache") if prev else None
+                    cache_ok = cq is not None and fee_plausible(cq.maker_bps, cq.taker_bps)
+                except (ValueError, KeyError, ArithmeticError):
+                    cache_ok = False
+                if cache_ok:
+                    quote = cq
                     logger.warning("fee fetch %s failed (%s) - using cached %s", venue, exc, prev["ts"])
                 else:
                     quote = FeeQuote(
