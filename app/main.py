@@ -33,6 +33,7 @@ from app.connectors.ccxt_manager import (
     FUNDING_TOPIC,
     BookFeed,
     FundingPoller,
+    fetch_minimal_markets,
     fetch_unified_account_health,
 )
 from app.connectors.normalizer import FundingRate, L2OrderBook
@@ -146,13 +147,28 @@ async def run() -> None:
     perp_symbols = settings.perp_symbol_list
     spot_ex = settings.spot_exchange_list[0]
     tasks = []
+    # One minimal market table per venue, shared across that venue's feeds
+    # (full load_markets per instance OOMs a 2GB sandbox).
+    venues = list(dict.fromkeys(
+        list(settings.spot_exchange_list) + list(settings.perp_exchange_list)
+    ))
+    venue_markets = {}
+    for v in venues:
+        try:
+            venue_markets[v] = await fetch_minimal_markets(v)
+        except Exception as exc:
+            logger.warning("minimal markets %s failed: %s", v, exc)
+            venue_markets[v] = None
     for i, ex in enumerate(settings.spot_exchange_list):
         sym = spot_symbols[i] if i < len(spot_symbols) else spot_symbols[0]
-        tasks.append(asyncio.create_task(BookFeed(ex, [sym]).run(bus, stop)))
+        tasks.append(asyncio.create_task(
+            BookFeed(ex, [sym], markets_list=venue_markets.get(ex)).run(bus, stop)))
     for i, ex in enumerate(settings.perp_exchange_list):
         sym = perp_symbols[i] if i < len(perp_symbols) else perp_symbols[0]
-        tasks.append(asyncio.create_task(BookFeed(ex, [sym]).run(bus, stop)))
-        tasks.append(asyncio.create_task(FundingPoller(ex, [sym]).run(bus, stop)))
+        tasks.append(asyncio.create_task(
+            BookFeed(ex, [sym], markets_list=venue_markets.get(ex)).run(bus, stop)))
+        tasks.append(asyncio.create_task(
+            FundingPoller(ex, [sym], markets_list=venue_markets.get(ex)).run(bus, stop)))
 
     books_q = bus.subscribe(BOOKS_TOPIC)
     funding_q = bus.subscribe(FUNDING_TOPIC)

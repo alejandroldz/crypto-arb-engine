@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from decimal import Decimal
+import gc
 import logging
 import time
 from datetime import datetime, timezone
@@ -22,6 +23,33 @@ logger = logging.getLogger("ingestion")
 
 BOOKS_TOPIC = "books"
 FUNDING_TOPIC = "funding"
+
+
+async def fetch_minimal_markets(exchange_id: str) -> list:
+    """Fetch ONLY the market definitions we need, as a raw list for
+    ex.set_markets(). Full load_markets pulls entire options chains
+    (deribit/okx): hundreds of MB per ccxt instance, and BookFeed +
+    FundingPoller instances per venue OOM a 2GB sandbox. One list per venue
+    is fetched once in main and shared (by reference) across instances.
+    """
+    ex = getattr(ccxtpro, exchange_id)({"enableRateLimit": True})
+    try:
+        if exchange_id == "okx":  # EU X-Perps are instType FUTURES
+            r = await ex.public_get_public_instruments({"instType": "FUTURES"})
+            raw = r.get("data", [])
+        elif exchange_id in ("deribit", "krakenfutures", "kraken"):
+            # no parse_markets on these: fetch all (transient peak, one venue
+            # at a time in main) and keep only what feeds subscribe to
+            markets = await ex.fetch_markets()
+            if exchange_id == "kraken":
+                return [m for m in markets if m.get("spot") and m.get("active")]
+            return [
+                m for m in markets
+                if (m.get("future") or m.get("swap")) and m.get("active")
+            ]
+        return ex.parse_markets(raw)
+    finally:
+        await ex.close()
 
 
 def _contract_base_qty(qty, price, market: dict | None) -> str:
@@ -93,10 +121,12 @@ class BookFeed:
     REST poll per symbol, backs off, and retries the socket.
     """
 
-    def __init__(self, exchange_id: str, symbols: list[str], rest_backoff_s: int = 2):
+    def __init__(self, exchange_id: str, symbols: list[str], rest_backoff_s: int = 2,
+                 markets_list: list | None = None):
         self.exchange_id = exchange_id
         self.symbols = list(symbols)
         self.rest_backoff_s = rest_backoff_s
+        self.markets_list = markets_list
         self.last_error: str | None = None
 
     async def run(self, bus: EventBus, stop: asyncio.Event) -> None:
@@ -105,7 +135,10 @@ class BookFeed:
         # book amounts to base units before engines see them
         markets = {}
         try:
-            await ex.load_markets()
+            if self.markets_list is not None:
+                ex.set_markets(self.markets_list)
+            else:
+                await ex.load_markets()
             markets = {s: ex.market(s) for s in self.symbols}
         except Exception as exc:
             logger.warning("market meta %s: %s", self.exchange_id, exc)
@@ -143,15 +176,19 @@ class BookFeed:
 class FundingPoller:
     """Polls public funding rates for perp symbols (REST; rates move slowly)."""
 
-    def __init__(self, exchange_id: str, symbols: list[str], interval_s: int = 30):
+    def __init__(self, exchange_id: str, symbols: list[str], interval_s: int = 30,
+                 markets_list: list | None = None):
         self.exchange_id = exchange_id
         self.symbols = list(symbols)
         self.interval_s = interval_s
+        self.markets_list = markets_list
         self.last_error: str | None = None
 
     async def run(self, bus: EventBus, stop: asyncio.Event) -> None:
         ex = getattr(ccxtpro, self.exchange_id)({"enableRateLimit": True})
         ex.number = str
+        if self.markets_list is not None:
+            ex.set_markets(self.markets_list)
         try:
             while not stop.is_set():
                 for symbol in self.symbols:
