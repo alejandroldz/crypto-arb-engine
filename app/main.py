@@ -39,6 +39,7 @@ from app.connectors.ccxt_manager import (
 from app.connectors.normalizer import FundingRate, L2OrderBook
 from app.core.circuit_breaker import CircuitBreaker
 from app.core.config import get_settings
+from app.core.feed_guards import remote_book_stale, sequence_regressed
 from app.core.decimals import D, ZERO, mul
 from app.core.events import EventBus
 from app.database.duckdb_store import TickStore
@@ -228,10 +229,13 @@ async def run() -> None:
         if t in tasks:
             tasks.remove(t)
 
+    spot_venues = set(settings.spot_exchange_list)
+
     def start_book_feed(ex: str, sym: str) -> None:
         start_feed(
             f"book:{ex}:{sym}",
-            lambda ev: BookFeed(ex, [sym], markets_list=venue_markets.get(ex)).run(bus, ev),
+            lambda ev: BookFeed(ex, [sym], markets_list=venue_markets.get(ex),
+                                derivative=ex not in spot_venues).run(bus, ev),
         )
 
     def start_funding_feed(ex: str, sym: str) -> None:
@@ -468,7 +472,7 @@ async def run() -> None:
                 raw += await screener_io.fetch_krakenfutures_metrics(
                     min_volume_usd=min_vol, bases=spot_bases)
                 new_eligible = scr.run_sweep(
-                    [scr.from_raw(r) for r in raw],
+                    [m for m in (scr.from_raw(r) for r in raw) if m is not None],
                     hyst,
                     min_volume_usd=D(settings.screener_min_volume_usd),
                     min_positive_pct=D(settings.screener_min_positive_pct),
@@ -538,20 +542,37 @@ async def run() -> None:
 
             while not books_q.empty():
                 book = books_q.get_nowait()
-                books[f"{book.exchange}:{book.symbol}"] = book
+                bk = f"{book.exchange}:{book.symbol}"
+                # F01: never let a venue serve an old snapshot as new
+                if remote_book_stale(book.exchange_ts):
+                    continue
+                prev_book = books.get(bk)
+                if prev_book is not None and sequence_regressed(
+                    prev_book.sequence, prev_book.exchange_ts,
+                    book.sequence, book.exchange_ts,
+                ):
+                    continue  # F01: replay/duplicate, keep the newer snapshot
+                books[bk] = book
                 # sample: 1 snapshot/s per symbol is enough for VWAP/slippage
                 # analysis - every tick floods the store and the sandbox RAM
-                bk = f"{book.exchange}:{book.symbol}"
                 now_mono = time.monotonic()
                 if now_mono - last_book_record.get(bk, 0.0) >= 1.0:
                     last_book_record[bk] = now_mono
-                    await asyncio.to_thread(ticks.record_book, book)
+                    try:
+                        await asyncio.to_thread(ticks.record_book, book)
+                    except Exception as exc:
+                        # F09: a bad record must not kill the management loop
+                        logger.warning("book persist dropped %s: %s", bk, exc)
 
             while not funding_q.empty():
                 rate = funding_q.get_nowait()
                 fkey = f"{rate.exchange}:{rate.symbol}"
                 funding[fkey] = rate
-                await asyncio.to_thread(ticks.record_funding, rate)
+                try:
+                    await asyncio.to_thread(ticks.record_funding, rate)
+                except Exception as exc:
+                    # F09: a bad record must not kill the management loop
+                    logger.warning("funding persist dropped %s: %s", fkey, exc)
                 append_funding_log(rate)
                 await handle_funding_candidate(carry_ctx, rate, now_ns)
                 if pp_ctx is not None:

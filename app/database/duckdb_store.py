@@ -7,6 +7,7 @@ from decimal import Decimal
 
 import duckdb
 
+from app.core.decimals import D
 from app.connectors.normalizer import FundingRate, L2OrderBook
 
 
@@ -85,7 +86,30 @@ class TickStore:
         except Exception:
             pass  # duplicate sample already seeded
 
+    @staticmethod
+    def _naive(dt):
+        # DuckDB TIMESTAMP is timezone-naive; normalize everything to UTC
+        # wall time so inserts and dedupe comparisons agree
+        if dt is None:
+            return None
+        if dt.tzinfo is not None:
+            return dt.astimezone(timezone.utc).replace(tzinfo=None)
+        return dt
+
     def record_funding(self, rate: FundingRate) -> None:
+        # F08: dedupe replays. Polls within the same funding interval carry
+        # the same rate and the same next_funding_ts; storing each one lets a
+        # replayed snapshot fill the history and pass the min-samples gate.
+        row = self._conn.execute(
+            "SELECT rate, next_funding_ts FROM funding_snapshots "
+            "WHERE exchange = ? AND symbol = ? ORDER BY ts_utc DESC LIMIT 1",
+            [rate.exchange, rate.symbol],
+        ).fetchone()
+        if row is not None:
+            same_rate = Decimal(str(row[0])) == D(rate.rate)
+            same_interval = self._naive(row[1]) == self._naive(rate.next_funding_ts)
+            if same_rate and same_interval:
+                return  # replay of the same interval observation
         self._conn.execute(
             "INSERT INTO funding_snapshots VALUES (?, ?, ?, ?, ?, ?)",
             [
@@ -94,7 +118,7 @@ class TickStore:
                 rate.symbol,
                 str(rate.rate),
                 str(rate.predicted_rate) if rate.predicted_rate is not None else None,
-                rate.next_funding_ts,
+                self._naive(rate.next_funding_ts),
             ],
         )
 

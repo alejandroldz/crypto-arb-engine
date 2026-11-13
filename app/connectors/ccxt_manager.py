@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 
 import ccxt.pro as ccxtpro
 
+from app.core.feed_guards import check_magnitude, funding_rate_plausible
 from app.core.decimals import D
 from app.connectors.normalizer import FundingRate, L2OrderBook, OrderBookLevel
 from app.core.events import EventBus
@@ -88,17 +89,27 @@ def normalize_book(
         raise ValueError(
             f"crossed book rejected: bid {bids_raw[0][0]} >= ask {asks_raw[0][0]}"
         )
+    # F09: reject non-finite / non-representable values BEFORE they reach
+    # engines or DuckDB (a 1e30 tick must not kill persistence)
+    bids = tuple(
+        OrderBookLevel(
+            price=str(check_magnitude(D(str(p)), "bid price")),
+            qty=str(check_magnitude(D(_contract_base_qty(q, p, market)), "bid qty")),
+        )
+        for p, q, *_ in bids_raw
+    )
+    asks = tuple(
+        OrderBookLevel(
+            price=str(check_magnitude(D(str(p)), "ask price")),
+            qty=str(check_magnitude(D(_contract_base_qty(q, p, market)), "ask qty")),
+        )
+        for p, q, *_ in asks_raw
+    )
     return L2OrderBook(
         exchange=exchange_id,
         symbol=symbol,
-        bids=tuple(
-            OrderBookLevel(price=str(p), qty=_contract_base_qty(q, p, market))
-            for p, q, *_ in bids_raw
-        ),
-        asks=tuple(
-            OrderBookLevel(price=str(p), qty=_contract_base_qty(q, p, market))
-            for p, q, *_ in asks_raw
-        ),
+        bids=bids,
+        asks=asks,
         exchange_ts=(
             datetime.fromtimestamp(ts_ms / 1000, tz=timezone.utc) if ts_ms else None
         ),
@@ -123,18 +134,21 @@ def _parse_interval_hours(raw: dict, default: int = 8) -> int:
 def normalize_funding(exchange_id: str, symbol: str, raw: dict) -> FundingRate:
     """ccxt funding rate payload -> canonical FundingRate."""
     next_ts = raw.get("nextFundingTimestamp")
+    # F08: quarantine implausible magnitudes (rate=10 = +1000% per interval)
+    rate = funding_rate_plausible(raw.get("fundingRate") or "0")
+    predicted = raw.get("predictedRate")
+    if predicted is not None:
+        predicted = str(check_magnitude(D(str(predicted)), "predicted rate"))
     return FundingRate(
         exchange=exchange_id,
         symbol=symbol,
-        rate=str(raw.get("fundingRate") or "0"),
+        rate=str(rate),
         interval_hours=_parse_interval_hours(raw),
         local_ts_ns=time.monotonic_ns(),
         next_funding_ts=(
             datetime.fromtimestamp(next_ts / 1000, tz=timezone.utc) if next_ts else None
         ),
-        predicted_rate=(
-            str(raw["predictedRate"]) if raw.get("predictedRate") is not None else None
-        ),
+        predicted_rate=predicted,
     )
 
 
@@ -146,11 +160,12 @@ class BookFeed:
     """
 
     def __init__(self, exchange_id: str, symbols: list[str], rest_backoff_s: int = 2,
-                 markets_list: list | None = None):
+                 markets_list: list | None = None, derivative: bool = True):
         self.exchange_id = exchange_id
         self.symbols = list(symbols)
         self.rest_backoff_s = rest_backoff_s
         self.markets_list = markets_list
+        self.derivative = derivative
         self.last_error: str | None = None
 
     async def run(self, bus: EventBus, stop: asyncio.Event) -> None:
@@ -158,14 +173,28 @@ class BookFeed:
         # market metadata (contractSize/linear) converts contract-denominated
         # book amounts to base units before engines see them
         markets = {}
-        try:
-            if self.markets_list is not None:
-                ex.set_markets(self.markets_list)
-            else:
-                await ex.load_markets()
-            markets = {s: ex.market(s) for s in self.symbols}
-        except Exception as exc:
-            logger.warning("market meta %s: %s", self.exchange_id, exc)
+        # F13: fail closed. Without contract metadata, derivative book amounts
+        # are in UNKNOWN units (contracts vs base): publishing them would
+        # inflate depth by orders of magnitude. Retry with backoff and never
+        # publish until metadata is available. Spot venues pass amounts
+        # through unchanged, so for them metadata stays optional.
+        while not markets and not stop.is_set():
+            try:
+                if self.markets_list is not None:
+                    ex.set_markets(self.markets_list)
+                else:
+                    await ex.load_markets()
+                markets = {s: ex.market(s) for s in self.symbols}
+            except Exception as exc:
+                self.last_error = f"{type(exc).__name__}: {exc}"
+                logger.warning("market meta %s: %s", self.exchange_id, exc)
+                if not self.derivative:
+                    break  # spot: base units already, metadata optional
+                await asyncio.sleep(max(self.rest_backoff_s, 5))
+        if self.derivative and not markets:
+            logger.error("book feed %s disabled: no contract metadata", self.exchange_id)
+            await ex.close()
+            return
         # NOTE: no ex.number = str here: ccxt.pro order-book maintenance does
         # arithmetic on prices (-price), which breaks on strings. normalize_book
         # stringifies floats via repr, which is exact for Decimal parsing.

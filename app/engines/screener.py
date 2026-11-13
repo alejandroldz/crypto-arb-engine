@@ -48,19 +48,31 @@ class PerpMetrics:
         return f"{self.exchange}:{self.symbol}"
 
 
-def from_raw(raw: object) -> PerpMetrics:
-    """Decimal-ize a connectors.screener_io.RawPerpMetrics (floats -> str)."""
-    def conv(x: object) -> Decimal | None:
-        return None if x is None else D(str(x))
+def from_raw(raw: object) -> PerpMetrics | None:
+    """Decimal-ize a connectors.screener_io.RawPerpMetrics (floats -> str).
 
+    F10: non-finite input fails CLOSED (returns None) instead of poisoning
+    the sweep: NaN funding history means "unknown", and unknown is unsafe.
+    One bad symbol must not abort the whole sweep.
+    """
+    def conv(x: object) -> Decimal | None:
+        if x is None:
+            return None
+        d = D(str(x))
+        return d if d.is_finite() else None
+
+    volume = D(str(raw.volume_24h_usd))
+    interval = D(str(raw.funding_interval_h))
+    if not volume.is_finite() or not interval.is_finite() or interval <= 0:
+        return None
     return PerpMetrics(
         exchange=raw.exchange,
         symbol=raw.symbol,
         base=raw.base,
-        volume_24h_usd=D(str(raw.volume_24h_usd)),
+        volume_24h_usd=volume,
         funding_mean=conv(raw.funding_mean),
         funding_pct_positive=conv(raw.funding_pct_positive),
-        funding_interval_h=D(str(raw.funding_interval_h)),
+        funding_interval_h=interval,
     )
 
 
