@@ -221,3 +221,22 @@ def test_f43_seed_compaction_failure_does_not_kill_boot(tmp_path):
         ro.chmod(0o755)
         monkey.undo()
     assert len(store.funding_history("okx", "BTC/USD:USD")) == 1
+
+
+def test_export_funding_csv_is_atomic_and_complete(tmp_path):
+    """The soak snapshot ships this CSV; it must include buffered rows and
+    never leave a partial file behind."""
+    import os
+    from app.connectors.normalizer import FundingRate
+
+    store = TickStore(str(tmp_path / "t.duckdb"))
+    store.record_funding(FundingRate(
+        exchange="okx", symbol="BTC/USD:USD", rate="0.0005",
+        predicted_rate=None, next_funding_ts=None, local_ts_ns=1,
+    ))
+    out = tmp_path / "export.csv"
+    n = store.export_funding_csv(str(out))
+    assert n == 1
+    assert not (tmp_path / "export.csv.tmp").exists()  # no leftover tmp
+    text = out.read_text()
+    assert "BTC/USD:USD" in text and "0.0005" in text

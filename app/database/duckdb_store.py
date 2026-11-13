@@ -92,6 +92,21 @@ class TickStore:
                 self._conn.execute("CHECKPOINT")
             return n
 
+    def export_funding_csv(self, path: str) -> int:
+        """Consistent export of funding_history (kept forever) for the
+        soak-data snapshot - the store file itself is too big to ship and
+        an outside process can never read it while the engine runs.
+        Atomic: write to a sibling .tmp, then rename. Returns rows."""
+        import os
+        tmp = path + ".tmp"
+        with self._lock:
+            self._flush_locked()  # the export must include buffered rows
+            n = self._conn.execute("SELECT count(*) FROM funding_snapshots").fetchone()[0]
+            self._conn.execute(
+                f"COPY funding_snapshots TO '{tmp}' (HEADER, DELIMITER ',')")
+            os.replace(tmp, path)
+            return n
+
     def flush(self) -> None:
         with self._lock:
             self._flush_locked()

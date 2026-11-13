@@ -834,6 +834,15 @@ async def run() -> None:
                         logger.info("book retention: %d snapshots pruned", pruned)
                 except Exception as exc:
                     logger.warning("book prune failed: %s", exc)
+                try:  # soak durability: hourly consistent funding export
+                    n = await asyncio.to_thread(
+                        ticks.export_funding_csv,
+                        str(Path(settings.duckdb_path).with_name(
+                            "funding_history_export.csv")),
+                    )
+                    logger.info("funding export: %d rows", n)
+                except Exception as exc:
+                    logger.warning("funding export failed: %s", exc)
 
             # real account health (read-only keys); simulated UTA is the fallback
             health_venues = []

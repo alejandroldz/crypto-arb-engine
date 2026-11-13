@@ -33,6 +33,11 @@ c.execute(f"VACUUM INTO '{dst}'")
 c.close()
 PY
 fi
+# The engine exports its funding history hourly (it owns the write lock, so
+# an outside read-only DuckDB connect always fails). Pick up that export so
+# a sandbox recycle does not lose the soak's core analysis data.
+FH="data/funding_history_export.csv"; [ -f "$FH" ] || FH="funding_history_export.csv"
+[ -f "$FH" ] && cp "$FH" "$WT/funding_history.csv"
 cd "$WT"
 git add -A
 git commit -q -m "soak snapshot $(date -u +%Y-%m-%dT%H:%M:%SZ)" || true
