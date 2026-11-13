@@ -25,8 +25,8 @@ def normalize_book(exchange_id: str, symbol: str, raw: dict) -> L2OrderBook:
     return L2OrderBook(
         exchange=exchange_id,
         symbol=symbol,
-        bids=tuple(OrderBookLevel(price=str(p), qty=str(q)) for p, q in raw["bids"]),
-        asks=tuple(OrderBookLevel(price=str(p), qty=str(q)) for p, q in raw["asks"]),
+        bids=tuple(OrderBookLevel(price=str(p), qty=str(q)) for p, q, *_ in raw["bids"]),
+        asks=tuple(OrderBookLevel(price=str(p), qty=str(q)) for p, q, *_ in raw["asks"]),
         exchange_ts=(
             datetime.fromtimestamp(ts_ms / 1000, tz=timezone.utc) if ts_ms else None
         ),

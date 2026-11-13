@@ -103,7 +103,8 @@ def test_vwap_bounds_property(ask_prices, ask_qtys, quote):
     book = make_book(bids=[("1", "1")], asks=levels)
     r = vwap_for_quote(book, "buy", D(quote), HAIRCUT)
     if r.vwap is not None:
-        assert r.vwap >= r.best_price
-        assert r.vwap <= r.worst_price
+        eps = Decimal("0.00000000000000000001")  # 28-digit division dust
+        assert r.vwap >= r.best_price - eps
+        assert r.vwap <= r.worst_price + eps
         assert r.slippage_bps >= 0
         assert r.filled_quote <= D(quote)

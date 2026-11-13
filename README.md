@@ -30,6 +30,13 @@ payout and break-even holding period are computed deterministically.
 - `app/ui/` rich CLI dashboard + Telegram notifier
 - `tests/` unit + Hypothesis property tests
 
+## Exchange notes
+
+Defaults: Kraken (spot), Deribit + Kraken Futures (perps) - all reachable
+from Spain/EU on free public endpoints, verified live from this repo's test
+runs. Bybit geo-blocks some jurisdictions at the CDN level; enable it only
+after confirming reachability from your own IP (`PERP_EXCHANGES`).
+
 ## Quickstart
 
 ```bash

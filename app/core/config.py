@@ -25,7 +25,8 @@ class Settings(BaseSettings):
 
     # exchanges (ccxt ids)
     spot_exchanges: str = "kraken,binance"
-    perp_exchanges: str = "bybit,deribit"
+    perp_exchanges: str = "deribit,krakenfutures"
+    perp_symbols: str = "BTC-PERPETUAL,BTC/USD:USD"
 
     # sizing / profitability
     target_quote_sizes: str = "100,500,1000"
@@ -98,6 +99,10 @@ class Settings(BaseSettings):
     @property
     def perp_exchange_list(self) -> list[str]:
         return [e.strip() for e in self.perp_exchanges.split(",") if e.strip()]
+
+    @property
+    def perp_symbol_list(self) -> list[str]:
+        return [s.strip() for s in self.perp_symbols.split(",") if s.strip()]
 
     @property
     def target_quote_size_list(self) -> list[Decimal]:
