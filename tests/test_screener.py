@@ -162,3 +162,26 @@ def test_whitelisted_key_survives_omission():
     h = Hysteresis()
     kw = dict(KW, whitelist_keys={"okx:BTC/USD:USD-310404"})
     assert run_sweep([], h, **kw) == {"okx:BTC/USD:USD-310404"}
+
+
+def test_f15_corrupt_state_discarded(tmp_path):
+    import json
+
+    from app.engines.screener import load_state
+    path = tmp_path / "screener_state.json"
+    for content in ("42", "[1,2]", "null", '"str"'):
+        path.write_text(content)
+        h = load_state(str(path))
+        assert h.to_dict() == {}
+    path.write_text(json.dumps({
+        "okx:BTC/USD:USD-310404": {"in": True, "streak": 5, "last": True},
+        "bad": None,
+        "garbagekey": {"in": True, "streak": 1, "last": True},
+        "okx:ETH": {"streak": "x"},
+        "krakenfutures:SOL/USD:USD": {"in": False, "streak": 2, "last": False},
+    }))
+    h = load_state(str(path))
+    state = h.to_dict()
+    assert set(state) == {"okx:BTC/USD:USD-310404", "krakenfutures:SOL/USD:USD"}
+    # and a sweep over the loaded state never crashes
+    assert h.update("okx:BTC/USD:USD-310404", False) in (True, False)

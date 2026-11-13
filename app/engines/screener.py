@@ -170,19 +170,49 @@ def run_sweep(
             continue
         still_in = hyst.update(key, False)
         if still_in or key in whitelist_keys:
+            if ":" not in key:
+                continue  # fuzz F15: corrupt key, never split blindly
             base = key.split(":", 1)[1].split("/")[0]
             if base in spot_bases:
                 eligible.add(key)
     return eligible
 
 
+def _sanitize_state(raw: object) -> dict[str, dict]:
+    """fuzz F15: keep only well-formed {key: {in, streak, last}} entries.
+    Corrupt entries (nulls, wrong types) would crash Hysteresis.update
+    inside every sweep; dropping them repairs the state on the next save."""
+    if not isinstance(raw, dict):
+        return {}
+    clean: dict[str, dict] = {}
+    dropped = 0
+    for key, entry in raw.items():
+        if (isinstance(key, str) and ":" in key and isinstance(entry, dict)
+                and isinstance(entry.get("in"), bool)):
+            try:
+                clean[key] = {
+                    "in": entry["in"],
+                    "streak": int(entry.get("streak", 0)),
+                    "last": bool(entry.get("last", entry["in"])),
+                }
+            except (TypeError, ValueError):
+                dropped += 1
+        else:
+            dropped += 1
+    if dropped:
+        logger.warning("screener state: %d corrupt entries dropped", dropped)
+    return clean
+
+
 def load_state(path: str) -> Hysteresis:
     p = Path(path)
     if p.exists():
         try:
-            return Hysteresis(json.loads(p.read_text(encoding="utf-8")))
+            raw = json.loads(p.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
             logger.warning("screener state unreadable, starting fresh")
+        else:
+            return Hysteresis(_sanitize_state(raw))
     return Hysteresis()
 
 
