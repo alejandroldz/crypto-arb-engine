@@ -208,34 +208,39 @@ class PerpPerpTrader:
             return None
         long_fee = bps_of(mul(qty, long_px), self._bps(long_passive, long_ex))
         short_fee = bps_of(mul(qty, short_px), self._bps(short_passive, short_ex))
-        position_id = await self.repo.open_position(
-            symbol=opp.short_symbol,
-            exchange_spot=f"{opp.long_exchange}(long)",
-            exchange_perp=opp.short_exchange,
-            qty_base=qty,
-            notional=mul(qty, long_px),
-            spot_entry_vwap=long_px,
-            perp_entry_vwap=short_px,
-            spot_symbol=f"{opp.long_exchange}:{opp.long_symbol}",
-            holding_intervals=opp.holding_hours,
-            entry_funding_rate=opp.net_rate_per_hour,
-        )
         now = datetime.now(timezone.utc)
-        for leg, exchange, side, vwap, fee in (
+        legs = (
             ("spot", long_book.exchange, "buy", long_px, long_fee),
             ("perp", short_book.exchange, "sell", short_px, short_fee),
-        ):
-            await self.repo.record_order(
-                position_id=position_id, leg=leg, action="open", side=side,
-                qty_base=qty, vwap=vwap, fee=fee, fee_currency=self.fee_currency,
-            )
-            await self.repo.audit_fill(
-                strategy_id="perp_perp", paired_hedge_id=position_id,
-                exchange=exchange, symbol=opp.short_symbol, side=side, amount=qty,
-                price_usd_equivalent=vwap, fee_amount=fee,
-                fee_currency=self.fee_currency, timestamp_utc=now,
-                net_pnl_usd=None, kind="paper",
-            )
+        )
+        # op.#2: position + both legs in ONE transaction (crash-safe entry)
+        position_id = await self.repo.open_position_atomic(
+            {
+                "symbol": opp.short_symbol,
+                "exchange_spot": f"{opp.long_exchange}(long)",
+                "exchange_perp": opp.short_exchange,
+                "qty_base": qty,
+                "notional": mul(qty, long_px),
+                "spot_entry_vwap": long_px,
+                "perp_entry_vwap": short_px,
+                "spot_symbol": f"{opp.long_exchange}:{opp.long_symbol}",
+                "holding_intervals": opp.holding_hours,
+                "entry_funding_rate": opp.net_rate_per_hour,
+            },
+            [
+                {"leg": leg, "action": "open", "side": side, "qty_base": qty,
+                 "vwap": vwap, "fee": fee, "fee_currency": self.fee_currency}
+                for leg, _, side, vwap, fee in legs
+            ],
+            [
+                {"strategy_id": "perp_perp", "exchange": exchange,
+                 "symbol": opp.short_symbol, "side": side, "amount": qty,
+                 "price_usd_equivalent": vwap, "fee_amount": fee,
+                 "fee_currency": self.fee_currency, "timestamp_utc": now,
+                 "net_pnl_usd": None, "kind": "paper"}
+                for leg, exchange, side, vwap, fee in legs
+            ],
+        )
         logger.info(
             "pp entry %s %s: long %s @ %s (%s) | short %s @ %s (%s)",
             opp.base, qty, opp.long_exchange, long_px,
@@ -312,22 +317,29 @@ class PerpPerpTrader:
             - entry_fees
         )
         now = datetime.now(timezone.utc)
-        for leg, exchange, side, vwap, fee in (
+        legs = (
             ("spot", long_book.exchange, "sell", sell.vwap, long_fee),
             ("perp", short_book.exchange, "buy", cover.vwap, short_fee),
-        ):
-            await self.repo.record_order(
-                position_id=fill.position_id, leg=leg, action="close", side=side,
-                qty_base=fill.qty_base, vwap=vwap, fee=fee, fee_currency=self.fee_currency,
-            )
-            await self.repo.audit_fill(
-                strategy_id="perp_perp", paired_hedge_id=fill.position_id,
-                exchange=exchange, symbol=long_book.symbol, side=side,
-                amount=fill.qty_base, price_usd_equivalent=vwap, fee_amount=fee,
-                fee_currency=self.fee_currency, timestamp_utc=now,
-                net_pnl_usd=pnl if leg == "perp" else None, kind="paper",
-            )
-        await self.repo.close_position(fill.position_id, pnl, now)
+        )
+        # op.#2: close legs + status flip in ONE transaction (crash-safe exit)
+        await self.repo.close_position_atomic(
+            fill.position_id, pnl, now,
+            [
+                {"leg": leg, "action": "close", "side": side,
+                 "qty_base": fill.qty_base, "vwap": vwap, "fee": fee,
+                 "fee_currency": self.fee_currency}
+                for leg, _, side, vwap, fee in legs
+            ],
+            [
+                {"strategy_id": "perp_perp", "exchange": exchange,
+                 "symbol": long_book.symbol, "side": side,
+                 "amount": fill.qty_base, "price_usd_equivalent": vwap,
+                 "fee_amount": fee, "fee_currency": self.fee_currency,
+                 "timestamp_utc": now,
+                 "net_pnl_usd": pnl if leg == "perp" else None, "kind": "paper"}
+                for leg, exchange, side, vwap, fee in legs
+            ],
+        )
         return pnl
 
 

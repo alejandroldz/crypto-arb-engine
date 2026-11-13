@@ -76,6 +76,103 @@ class Repository:
             ).scalars().all()
         return sum((D(r.fee) for r in rows), D("0"))
 
+    @staticmethod
+    def _order_row(fields: dict) -> OrderRecord:
+        return OrderRecord(
+            position_id=fields["position_id"],
+            leg=fields["leg"],
+            action=fields["action"],
+            side=fields["side"],
+            qty_base=D(fields["qty_base"]),
+            vwap=D(fields["vwap"]),
+            fee=D(fields["fee"]),
+            fee_currency=fields["fee_currency"],
+            kind=fields.get("kind", "paper"),
+        )
+
+    @staticmethod
+    def _audit_row(fields: dict) -> TaxAuditLog:
+        return TaxAuditLog(
+            strategy_id=fields["strategy_id"],
+            paired_hedge_id=fields["paired_hedge_id"],
+            exchange=fields["exchange"],
+            symbol=fields["symbol"],
+            side=fields["side"],
+            amount=D(fields["amount"]),
+            price_usd_equivalent=D(fields["price_usd_equivalent"]),
+            fee_amount=D(fields["fee_amount"]),
+            fee_currency=fields["fee_currency"],
+            timestamp_utc=fields["timestamp_utc"],
+            net_pnl_usd=(
+                D(fields["net_pnl_usd"]) if fields.get("net_pnl_usd") is not None else None
+            ),
+            kind=fields.get("kind", "paper"),
+        )
+
+    async def open_position_atomic(
+        self, position_fields: dict, orders: list[dict], audits: list[dict]
+    ) -> int:
+        """op.#2: position + both entry orders + both audit rows in ONE
+        transaction. A crash mid-entry can no longer leave a position with
+        a single recorded leg."""
+        async with self._session() as s:
+            pos = Position(
+                qty_base=D(position_fields["qty_base"]),
+                notional=D(position_fields["notional"]),
+                spot_entry_vwap=D(position_fields["spot_entry_vwap"]),
+                perp_entry_vwap=D(position_fields["perp_entry_vwap"]),
+                symbol=position_fields["symbol"],
+                exchange_spot=position_fields["exchange_spot"],
+                exchange_perp=position_fields["exchange_perp"],
+                spot_symbol=position_fields.get("spot_symbol", ""),
+                holding_intervals=position_fields.get("holding_intervals", 90),
+                entry_funding_rate=D(position_fields.get("entry_funding_rate", "0")),
+            )
+            s.add(pos)
+            await s.flush()  # assign pos.id inside the transaction
+            for f in orders:
+                s.add(self._order_row({**f, "position_id": pos.id}))
+            for f in audits:
+                s.add(self._audit_row({**f, "paired_hedge_id": pos.id}))
+            await s.commit()
+            return pos.id
+
+    async def close_position_atomic(
+        self,
+        position_id: int,
+        realized_pnl_usd: Decimal,
+        closed_at: datetime,
+        orders: list[dict],
+        audits: list[dict],
+    ) -> None:
+        """op.#2: close orders + audit rows + status flip in ONE transaction.
+        A crash mid-close no longer leaves close orders on an open position
+        (which made the retry duplicate them)."""
+        async with self._session() as s:
+            pos = await s.get(Position, position_id)
+            if pos is None:
+                raise KeyError(f"position {position_id} not found")
+            pos.status = "closed"
+            pos.closed_at = closed_at
+            pos.realized_pnl_usd = D(realized_pnl_usd)
+            for f in orders:
+                s.add(self._order_row({**f, "position_id": position_id}))
+            for f in audits:
+                s.add(self._audit_row({**f, "paired_hedge_id": position_id}))
+            await s.commit()
+
+    async def count_orders(self, position_id: int, action: str = "open") -> int:
+        async with self._session() as s:
+            rows = (
+                await s.execute(
+                    select(OrderRecord).where(
+                        OrderRecord.position_id == position_id,
+                        OrderRecord.action == action,
+                    )
+                )
+            ).scalars().all()
+        return len(rows)
+
     async def record_order(self, **fields) -> int:
         async with self._session() as s:
             rec = OrderRecord(

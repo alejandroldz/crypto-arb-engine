@@ -288,6 +288,15 @@ async def run() -> None:
     for pos in await repo.open_positions():
         if pos.exchange_spot.endswith("(long)"):
             continue  # perp-perp row: recovered into pp_ctx below
+        # op.#2 recovery validation: a crash mid-entry (pre-atomic writes)
+        # can leave a position with <2 recorded entry legs; never manage it
+        if await repo.count_orders(pos.id, "open") != 2:
+            logger.error("recovery SKIP pos %s: entry legs incomplete", pos.id)
+            await notifier.send(
+                f"RECOVERY SKIP pos {pos.id} {pos.symbol}: patas de entrada "
+                "incompletas (crash a media entrada) - revision manual"
+            )
+            continue
         perp_key = f"{pos.exchange_perp}:{pos.symbol}"
         spot_key = f"{pos.exchange_spot}:{pos.spot_symbol or spot_symbols[0]}"
         open_carries[f"{spot_key}|{perp_key}"] = OpenCarry(
@@ -391,6 +400,13 @@ async def run() -> None:
         now_ns = time.monotonic_ns()
         for pos in await repo.open_positions():
             if not pos.exchange_spot.endswith("(long)"):
+                continue
+            if await repo.count_orders(pos.id, "open") != 2:
+                logger.error("recovery SKIP pp pos %s: entry legs incomplete", pos.id)
+                await notifier.send(
+                    f"RECOVERY SKIP pp pos {pos.id} {pos.symbol}: patas de "
+                    "entrada incompletas (crash a media entrada) - revision manual"
+                )
                 continue
             long_ex = pos.exchange_spot[: -len("(long)")]
             base = pos.symbol.split("/")[0]

@@ -203,47 +203,39 @@ class PaperTrader:
         if self.execution_mode != "maker":
             spot_book, perp_book = books_after_latency()
 
-        position_id = await self.repo.open_position(
-            symbol=opp.symbol,
-            exchange_spot=spot_book.exchange,
-            exchange_perp=perp_book.exchange,
-            qty_base=qty,
-            notional=mul(qty, buy_vwap),
-            spot_entry_vwap=buy_vwap,
-            perp_entry_vwap=short_vwap,
-            spot_symbol=spot_symbol or spot_book.symbol,
-            holding_intervals=opp.holding_intervals,
-            entry_funding_rate=opp.funding_rate,
-        )
         now = datetime.now(timezone.utc)
-        for leg, exchange, side, vwap, fee in (
+        legs = (
             ("spot", spot_book.exchange, "buy", buy_vwap, spot_fee),
             ("perp", perp_book.exchange, "sell", short_vwap, perp_fee),
-        ):
-            await self.repo.record_order(
-                position_id=position_id,
-                leg=leg,
-                action="open",
-                side=side,
-                qty_base=qty,
-                vwap=vwap,
-                fee=fee,
-                fee_currency=self.fee_currency,
-            )
-            await self.repo.audit_fill(
-                strategy_id="funding_carry",
-                paired_hedge_id=position_id,
-                exchange=exchange,
-                symbol=opp.symbol,
-                side=side,
-                amount=qty,
-                price_usd_equivalent=vwap,
-                fee_amount=fee,
-                fee_currency=self.fee_currency,
-                timestamp_utc=now,
-                net_pnl_usd=None,
-                kind="paper",
-            )
+        )
+        # op.#2: position + both legs in ONE transaction (crash-safe entry)
+        position_id = await self.repo.open_position_atomic(
+            {
+                "symbol": opp.symbol,
+                "exchange_spot": spot_book.exchange,
+                "exchange_perp": perp_book.exchange,
+                "qty_base": qty,
+                "notional": mul(qty, buy_vwap),
+                "spot_entry_vwap": buy_vwap,
+                "perp_entry_vwap": short_vwap,
+                "spot_symbol": spot_symbol or spot_book.symbol,
+                "holding_intervals": opp.holding_intervals,
+                "entry_funding_rate": opp.funding_rate,
+            },
+            [
+                {"leg": leg, "action": "open", "side": side, "qty_base": qty,
+                 "vwap": vwap, "fee": fee, "fee_currency": self.fee_currency}
+                for leg, _, side, vwap, fee in legs
+            ],
+            [
+                {"strategy_id": "funding_carry", "exchange": exchange,
+                 "symbol": opp.symbol, "side": side, "amount": qty,
+                 "price_usd_equivalent": vwap, "fee_amount": fee,
+                 "fee_currency": self.fee_currency, "timestamp_utc": now,
+                 "net_pnl_usd": None, "kind": "paper"}
+                for leg, exchange, side, vwap, fee in legs
+            ],
+        )
         return PaperFill(
             position_id=position_id,
             qty_base=qty,
@@ -292,33 +284,27 @@ class PaperTrader:
             - entry_fees
         )
         now = datetime.now(timezone.utc)
-        for leg, exchange, side, vwap, fee in (
+        legs = (
             ("spot", spot_book.exchange, "sell", sell.vwap, spot_fee),
             ("perp", perp_book.exchange, "buy", cover.vwap, perp_fee),
-        ):
-            await self.repo.record_order(
-                position_id=fill.position_id,
-                leg=leg,
-                action="close",
-                side=side,
-                qty_base=fill.qty_base,
-                vwap=vwap,
-                fee=fee,
-                fee_currency=self.fee_currency,
-            )
-            await self.repo.audit_fill(
-                strategy_id="funding_carry",
-                paired_hedge_id=fill.position_id,
-                exchange=exchange,
-                symbol=spot_book.symbol,
-                side=side,
-                amount=fill.qty_base,
-                price_usd_equivalent=vwap,
-                fee_amount=fee,
-                fee_currency=self.fee_currency,
-                timestamp_utc=now,
-                net_pnl_usd=pnl if leg == "perp" else None,
-                kind="paper",
-            )
-        await self.repo.close_position(fill.position_id, pnl, now)
+        )
+        # op.#2: close legs + status flip in ONE transaction (crash-safe exit)
+        await self.repo.close_position_atomic(
+            fill.position_id, pnl, now,
+            [
+                {"leg": leg, "action": "close", "side": side,
+                 "qty_base": fill.qty_base, "vwap": vwap, "fee": fee,
+                 "fee_currency": self.fee_currency}
+                for leg, _, side, vwap, fee in legs
+            ],
+            [
+                {"strategy_id": "funding_carry", "exchange": exchange,
+                 "symbol": spot_book.symbol, "side": side,
+                 "amount": fill.qty_base, "price_usd_equivalent": vwap,
+                 "fee_amount": fee, "fee_currency": self.fee_currency,
+                 "timestamp_utc": now,
+                 "net_pnl_usd": pnl if leg == "perp" else None, "kind": "paper"}
+                for leg, exchange, side, vwap, fee in legs
+            ],
+        )
         return pnl
