@@ -189,3 +189,25 @@ margin: UNIFIED 90% util | BTC ratio 95% | MMR n/a (warn 65%, unwind 75%) | max
 2026-11-13 22:28:48,656 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007131817901248971 vs polled mean -0.000004102313634017464285714285714 - entries quarantined
 2026-11-13 22:29:07,135 main INFO real account health krakenfutures: equity 0 mmr 0
 2026-11-13 22:29:07,756 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 22:29:19,692 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007131817901248971 vs polled mean -0.000004059368304314611764705882353 - entries quarantined
+                       crypto-arb-engine (paper trading)                        
+┏━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┓
+┃ Feed          ┃ Symbol             ┃ Best bid ┃ Best ask / rate     ┃ Age ms ┃
+┡━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━┩
+│ kraken        │ BTC/USD            │ 68353.2  │ 68353.3             │ 186    │
+│ kraken        │ ETH/USD            │ 1930.34  │ 1930.35             │ 219    │
+│ kraken        │ SOL/USD            │ 79.22    │ 79.23               │ 65     │
+│ krakenfutures │ BTC/USD:USD        │ 68364.0  │ 68365.0             │ 65     │
+│ krakenfutures │ ETH/USD:USD        │ 1930.3   │ 1930.4              │ 57     │
+│ okx           │ BTC/USD:USD-310404 │ 68369.9  │ 68370.0             │ 284    │
+│ okx           │ ETH/USD:USD-310404 │ 1929.65  │ 1929.66             │ 186    │
+│ okx           │ SOL/USD:USD-310404 │ 79.17    │ 79.18               │ 490    │
+│ krakenfutures │ BTC/USD:USD        │ funding  │ 0.0000145843956174… │ 4904   │
+│ krakenfutures │ ETH/USD:USD        │ funding  │ -4.51960609275E-7   │ 6145   │
+│ okx           │ BTC/USD:USD-310404 │ funding  │ 0.0001000000000000  │ 29696  │
+│ okx           │ ETH/USD:USD-310404 │ funding  │ 0.0000437863232710  │ 29696  │
+│ okx           │ SOL/USD:USD-310404 │ funding  │ 0.0000286782590685  │ 29921  │
+└───────────────┴────────────────────┴──────────┴─────────────────────┴────────┘
+     opportunities: 0 | open positions: 0 | paper PnL: 0 USD | breaker: ok      
+ margin: UNIFIED 90% util | worst ratio 85% | MMR n/a (warn 65%, unwind 75%) |  
+                              max safe pump +130%                               

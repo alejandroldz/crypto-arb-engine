@@ -485,9 +485,17 @@ async def _try_open(ctx: PpContext, base: str) -> None:
             if settings.sizing_mode == "kelly":
                 from app.engines.sizing import dynamic_notional
 
+                # dif D4: edge is PER HOUR but history rates are PER
+                # INTERVAL (8h on OKX) - mixing them skewed the Kelly score
+                # 8x. Normalize the history to per-hour rates.
+                short_interval_h = D(settings.funding_interval_h_for(short_ex))
+                history_per_hour = (
+                    [D(r) / short_interval_h for r in short_hist]
+                    if short_interval_h > 0 else list(short_hist)
+                )
                 sized = dynamic_notional(
                     edge_per_interval=opp.net_rate_per_hour,
-                    history=short_hist,
+                    history=history_per_hour,
                     budget_remaining=budget,
                     kelly_fraction=D(settings.kelly_fraction),
                     full_score=D(settings.sizing_full_score),

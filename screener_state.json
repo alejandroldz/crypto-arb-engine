@@ -1,67 +1,87 @@
 {
  "krakenfutures:BTC/USD:USD": {
   "in": false,
-  "streak": 7,
+  "streak": 8,
   "last": false
  },
  "okx:SOL/USD:USD-310404": {
   "in": false,
-  "streak": 7,
+  "streak": 8,
   "last": false
  },
  "okx:ETH/USD:USD-310404": {
   "in": false,
-  "streak": 7,
+  "streak": 8,
   "last": false
  },
  "krakenfutures:ETH/USD:USD": {
   "in": false,
-  "streak": 7,
+  "streak": 8,
   "last": false
  },
  "okx:BTC/USD:USD-310404": {
   "in": false,
-  "streak": 6,
+  "streak": 7,
   "last": false
  },
  "okx:XRP/USD:USD-310404": {
   "in": false,
-  "streak": 7,
+  "streak": 8,
   "last": false
  },
  "okx:STRK/USD:USD-310919": {
   "in": false,
-  "streak": 7,
+  "streak": 8,
   "last": false
  },
  "krakenfutures:SOL/USD:USD": {
   "in": false,
-  "streak": 7,
+  "streak": 8,
   "last": false
  },
  "krakenfutures:HYPE/USD:USD": {
   "in": false,
-  "streak": 7,
+  "streak": 8,
   "last": false
  },
  "krakenfutures:ZEC/USD:USD": {
   "in": false,
-  "streak": 7,
+  "streak": 8,
   "last": false
  },
  "krakenfutures:XRP/USD:USD": {
   "in": false,
-  "streak": 7,
+  "streak": 8,
   "last": false
  },
  "krakenfutures:XAUT/USD:USD": {
   "in": false,
-  "streak": 7,
+  "streak": 8,
   "last": false
  },
  "krakenfutures:NEAR/USD:USD": {
   "in": false,
-  "streak": 7,
+  "streak": 8,
+  "last": false
+ },
+ "okx:ZEC/USD:USD-310530": {
+  "in": false,
+  "streak": 1,
+  "last": false
+ },
+ "okx:HYPE/USD:USD-310523": {
+  "in": false,
+  "streak": 1,
+  "last": false
+ },
+ "okx:NEAR/USD:USD-310613": {
+  "in": false,
+  "streak": 1,
+  "last": false
+ },
+ "okx:PUMP/USD:USD-310404": {
+  "in": false,
+  "streak": 1,
   "last": false
  }
 }

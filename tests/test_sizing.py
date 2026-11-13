@@ -57,3 +57,23 @@ def test_low_score_scales_down():
     noisy = [D("0.001"), D("-0.002"), D("0.003"), D("-0.001"), D("0.002")] * 10
     n = dynamic_notional(**_kw(history=noisy))
     assert ZERO < n < D("5000") * D("0.25")
+
+
+def test_d4_perp_perp_kelly_normalizes_history_per_hour():
+    """dif D4: edge per hour vs history per interval (8h) skewed Kelly 8x."""
+    from app.engines.sizing import dynamic_notional
+    # edge per hour 0.001; history per interval 0.008 (8h) == same 0.001/h
+    hist_interval = [D("0.008")] * 10
+    hist_hourly = [D("0.001")] * 10
+    kw = dict(
+        edge_per_interval=D("0.001"), budget_remaining=D("10000"),
+        kelly_fraction=D("0.5"), full_score=D("10"),
+        min_notional=D("10"), max_notional=D("5000"),
+    )
+    # zero-variance history saturates the score either way; use variance
+    hist_interval = [D("0.007"), D("0.009")] * 5
+    hist_hourly = [D("0.000875"), D("0.001125")] * 5
+    a = dynamic_notional(history=hist_interval, **kw)
+    b = dynamic_notional(history=hist_hourly, **kw)
+    # the per-interval history understates the score by ~8x -> smaller size
+    assert a < b
