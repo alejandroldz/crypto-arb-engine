@@ -67,6 +67,8 @@ def detect_funding_carry(
     perp_taker_fee_bps: Decimal,
     slippage_buffer_bps: Decimal,
     min_net_profit_usd: Decimal,
+    spot_entry_fee_bps: Decimal | None = None,
+    perp_entry_fee_bps: Decimal | None = None,
     historical_rates: Sequence[Decimal] = (),
     min_history_samples: int = 30,
 ) -> FundingOpportunity | None:
@@ -95,6 +97,8 @@ def detect_funding_carry(
         spot_taker_fee_bps=D(spot_taker_fee_bps),
         perp_taker_fee_bps=D(perp_taker_fee_bps),
         slippage_buffer_bps=D(slippage_buffer_bps),
+        spot_entry_fee_bps=spot_entry_fee_bps,
+        perp_entry_fee_bps=perp_entry_fee_bps,
     )
     if not approve_trade(projected, D(min_net_profit_usd)).approved:
         return None
@@ -104,6 +108,8 @@ def detect_funding_carry(
         spot_taker_fee_bps=D(spot_taker_fee_bps),
         perp_taker_fee_bps=D(perp_taker_fee_bps),
         slippage_buffer_bps=D(slippage_buffer_bps),
+        spot_entry_fee_bps=spot_entry_fee_bps,
+        perp_entry_fee_bps=perp_entry_fee_bps,
     )
     if breakeven is None or breakeven > holding_intervals:
         return None

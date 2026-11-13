@@ -40,18 +40,26 @@ def funding_roundtrip_costs(
     spot_taker_fee_bps: Decimal,
     perp_taker_fee_bps: Decimal,
     slippage_buffer_bps: Decimal,
+    spot_entry_fee_bps: Decimal | None = None,
+    perp_entry_fee_bps: Decimal | None = None,
 ) -> Decimal:
-    """Worst-case cost of one entry+exit round trip (4 taker fills).
+    """Worst-case cost of one entry+exit round trip.
 
     Two fills happen on the spot venue (buy + sell) and two on the perp
-    venue (open + close short); each venue charges its own taker fee.
+    venue (open + close short); each venue charges its own fee. Entry legs
+    may execute as maker (limit orders); exits stay taker (unwinds are
+    time-critical). Entry fees default to taker when not given.
     """
-    spot_turnover = mul(D(notional), D("2"))
-    perp_turnover = mul(D(notional), D("2"))
-    fees = bps_of(spot_turnover, D(spot_taker_fee_bps)) + bps_of(
-        perp_turnover, D(perp_taker_fee_bps)
+    spot_entry = D(spot_entry_fee_bps) if spot_entry_fee_bps is not None else D(spot_taker_fee_bps)
+    perp_entry = D(perp_entry_fee_bps) if perp_entry_fee_bps is not None else D(perp_taker_fee_bps)
+    fees = (
+        bps_of(D(notional), spot_entry)
+        + bps_of(D(notional), D(spot_taker_fee_bps))
+        + bps_of(D(notional), perp_entry)
+        + bps_of(D(notional), D(perp_taker_fee_bps))
     )
-    return fees + bps_of(spot_turnover + perp_turnover, D(slippage_buffer_bps))
+    # slippage sobre el turnover total del ciclo (2x por venue)
+    return fees + bps_of(mul(D(notional), D("4")), D(slippage_buffer_bps))
 
 
 def funding_payout_per_interval(notional: Decimal, funding_rate: Decimal) -> Decimal:
@@ -67,6 +75,8 @@ def funding_net_pnl(
     spot_taker_fee_bps: Decimal,
     perp_taker_fee_bps: Decimal,
     slippage_buffer_bps: Decimal,
+    spot_entry_fee_bps: Decimal | None = None,
+    perp_entry_fee_bps: Decimal | None = None,
 ) -> Decimal:
     """Net PnL of holding the carry for ``intervals`` funding intervals."""
     payout = mul(funding_payout_per_interval(notional, funding_rate), D(intervals))
@@ -75,6 +85,8 @@ def funding_net_pnl(
         spot_taker_fee_bps=spot_taker_fee_bps,
         perp_taker_fee_bps=perp_taker_fee_bps,
         slippage_buffer_bps=slippage_buffer_bps,
+        spot_entry_fee_bps=spot_entry_fee_bps,
+        perp_entry_fee_bps=perp_entry_fee_bps,
     )
 
 
@@ -85,6 +97,8 @@ def funding_breakeven_intervals(
     spot_taker_fee_bps: Decimal,
     perp_taker_fee_bps: Decimal,
     slippage_buffer_bps: Decimal,
+    spot_entry_fee_bps: Decimal | None = None,
+    perp_entry_fee_bps: Decimal | None = None,
 ) -> int | None:
     """Intervals needed to recoup round-trip costs; None if rate <= 0."""
     payout = funding_payout_per_interval(notional, funding_rate)
@@ -95,6 +109,8 @@ def funding_breakeven_intervals(
         spot_taker_fee_bps=spot_taker_fee_bps,
         perp_taker_fee_bps=perp_taker_fee_bps,
         slippage_buffer_bps=slippage_buffer_bps,
+        spot_entry_fee_bps=spot_entry_fee_bps,
+        perp_entry_fee_bps=perp_entry_fee_bps,
     )
     return int(div(costs, payout).to_integral_value(rounding=ROUND_CEILING))
 

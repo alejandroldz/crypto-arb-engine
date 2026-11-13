@@ -9,19 +9,22 @@ the immutable tax log (marked kind="paper").
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Callable
 
 from app.connectors.normalizer import L2OrderBook
-from app.core.decimals import D, bps_of, mul
+from app.core.decimals import D, bps_of, div, mul
 from app.database.repository import Repository
 from app.engines.arbitrage import FundingOpportunity
 from app.engines.liquidity import vwap_for_base, vwap_for_quote
 
 #: returns the CURRENT (spot_book, perp_book) when called after the delay
 BookSource = Callable[[], tuple[L2OrderBook, L2OrderBook]]
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -43,6 +46,11 @@ class PaperTrader:
         slippage_buffer_bps: Decimal = D("5"),
         liquidity_haircut: Decimal = D("0.25"),
         fee_currency: str = "USD",
+        execution_mode: str = "taker",
+        spot_maker_fee_bps: Decimal | None = None,
+        perp_maker_fee_bps: Decimal | None = None,
+        maker_timeout_seconds: int = 60,
+        maker_fallback: str = "taker",
     ):
         self.repo = repo
         self.latency_ms = latency_ms
@@ -51,10 +59,57 @@ class PaperTrader:
         self.slippage_buffer_bps = D(slippage_buffer_bps)
         self.liquidity_haircut = D(liquidity_haircut)
         self.fee_currency = fee_currency
+        self.execution_mode = execution_mode
+        self.spot_maker_fee_bps = D(spot_maker_fee_bps) if spot_maker_fee_bps is not None else self.spot_taker_fee_bps
+        self.perp_maker_fee_bps = D(perp_maker_fee_bps) if perp_maker_fee_bps is not None else self.perp_taker_fee_bps
+        self.maker_timeout_seconds = maker_timeout_seconds
+        self.maker_fallback = maker_fallback
 
-    def _fee(self, leg: str, notional: Decimal) -> Decimal:
-        bps = self.spot_taker_fee_bps if leg == "spot" else self.perp_taker_fee_bps
+    def _fee(self, leg: str, notional: Decimal, *, passive: bool = False) -> Decimal:
+        if leg == "spot":
+            bps = self.spot_maker_fee_bps if passive else self.spot_taker_fee_bps
+        else:
+            bps = self.perp_maker_fee_bps if passive else self.perp_taker_fee_bps
         return bps_of(notional, bps)
+
+    async def _maker_entries(
+        self, books: BookSource, notional: Decimal
+    ) -> tuple[Decimal, Decimal, bool, bool] | None:
+        """Simulate passive limit entries: spot buy at best bid, perp short at
+        best ask. A limit fills when the opposite side trades through our
+        price (conservative proxy with sampled books). On timeout the
+        fallback applies: "taker" crosses the book at VWAP, "cancel" aborts.
+        Returns (spot_price, perp_price, spot_passive, perp_passive)."""
+        spot_book, perp_book = books()
+        spot_limit = spot_book.best_bid.price
+        perp_limit = perp_book.best_ask.price
+        deadline = asyncio.get_running_loop().time() + self.maker_timeout_seconds
+        while True:
+            spot_book, perp_book = books()
+            spot_filled = spot_book.best_ask.price <= spot_limit
+            perp_filled = perp_book.best_bid.price >= perp_limit
+            if spot_filled and perp_filled:
+                return spot_limit, perp_limit, True, True
+            if asyncio.get_running_loop().time() >= deadline:
+                break
+            await asyncio.sleep(1)
+        logger.info(
+            "maker timeout (%ss): spot_filled=%s perp_filled=%s -> %s",
+            self.maker_timeout_seconds, spot_filled, perp_filled, self.maker_fallback,
+        )
+        if self.maker_fallback == "cancel":
+            return None
+        buy = vwap_for_quote(spot_book, "buy", notional, self.liquidity_haircut)
+        short = vwap_for_quote(perp_book, "sell", notional, self.liquidity_haircut)
+        if not (buy.executable and short.executable):
+            return None
+        assert buy.vwap is not None and short.vwap is not None
+        return (
+            spot_limit if spot_filled else buy.vwap,
+            perp_limit if perp_filled else short.vwap,
+            spot_filled,
+            perp_filled,
+        )
 
     async def open_carry(
         self,
@@ -65,35 +120,54 @@ class PaperTrader:
     ) -> PaperFill | None:
         """Latency simulation, re-validation, then paper fills on both legs."""
         await asyncio.sleep(self.latency_ms / 1000)
+
+        if self.execution_mode == "maker":
+            entries = await self._maker_entries(books_after_latency, D(opp.notional))
+            if entries is None:
+                return None
+            spot_px, perp_px, spot_passive, perp_passive = entries
+            qty = min(
+                div(D(opp.notional), spot_px), div(D(opp.notional), perp_px)
+            )
+            spot_fee = self._fee("spot", mul(qty, spot_px), passive=spot_passive)
+            perp_fee = self._fee("perp", mul(qty, perp_px), passive=perp_passive)
+            logger.info(
+                "maker entry %s: spot %s @ %s (%s) | perp %s @ %s (%s)",
+                opp.symbol, qty, spot_px, "maker" if spot_passive else "taker-fallback",
+                qty, perp_px, "maker" if perp_passive else "taker-fallback",
+            )
+            buy_vwap, short_vwap = spot_px, perp_px
+        else:
+            spot_book, perp_book = books_after_latency()
+            buy = vwap_for_quote(spot_book, "buy", opp.notional, self.liquidity_haircut)
+            short = vwap_for_quote(perp_book, "sell", opp.notional, self.liquidity_haircut)
+            if not (buy.executable and short.executable):
+                return None  # edge or depth died during the latency window
+            assert buy.vwap is not None and short.vwap is not None
+
+            # delta-neutral: equal base exposure on both legs
+            qty = min(buy.base_qty, short.base_qty)
+            spot_fee = self._fee("spot", mul(qty, buy.vwap))
+            perp_fee = self._fee("perp", mul(qty, short.vwap))
+            buy_vwap, short_vwap = buy.vwap, short.vwap
         spot_book, perp_book = books_after_latency()
-
-        buy = vwap_for_quote(spot_book, "buy", opp.notional, self.liquidity_haircut)
-        short = vwap_for_quote(perp_book, "sell", opp.notional, self.liquidity_haircut)
-        if not (buy.executable and short.executable):
-            return None  # edge or depth died during the latency window
-        assert buy.vwap is not None and short.vwap is not None
-
-        # delta-neutral: equal base exposure on both legs
-        qty = min(buy.base_qty, short.base_qty)
-        spot_fee = self._fee("spot", mul(qty, buy.vwap))
-        perp_fee = self._fee("perp", mul(qty, short.vwap))
 
         position_id = await self.repo.open_position(
             symbol=opp.symbol,
             exchange_spot=spot_book.exchange,
             exchange_perp=perp_book.exchange,
             qty_base=qty,
-            notional=mul(qty, buy.vwap),
-            spot_entry_vwap=buy.vwap,
-            perp_entry_vwap=short.vwap,
+            notional=mul(qty, buy_vwap),
+            spot_entry_vwap=buy_vwap,
+            perp_entry_vwap=short_vwap,
             spot_symbol=spot_symbol or spot_book.symbol,
             holding_intervals=opp.holding_intervals,
             entry_funding_rate=opp.funding_rate,
         )
         now = datetime.now(timezone.utc)
         for leg, exchange, side, vwap, fee in (
-            ("spot", spot_book.exchange, "buy", buy.vwap, spot_fee),
-            ("perp", perp_book.exchange, "sell", short.vwap, perp_fee),
+            ("spot", spot_book.exchange, "buy", buy_vwap, spot_fee),
+            ("perp", perp_book.exchange, "sell", short_vwap, perp_fee),
         ):
             await self.repo.record_order(
                 position_id=position_id,
@@ -122,8 +196,8 @@ class PaperTrader:
         return PaperFill(
             position_id=position_id,
             qty_base=qty,
-            spot_vwap=buy.vwap,
-            perp_vwap=short.vwap,
+            spot_vwap=buy_vwap,
+            perp_vwap=short_vwap,
         )
 
     async def close_carry(

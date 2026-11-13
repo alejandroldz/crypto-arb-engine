@@ -45,6 +45,12 @@ from app.database.duckdb_store import TickStore
 from app.database.repository import Repository
 from app.engines.candidates import CarryContext, OpenCarry, handle_funding_candidate
 from app.engines.arbitrage import FundingOpportunity
+from app.engines.fee_oracle import (
+    FeeOracle,
+    fetch_kraken_spot_fee,
+    fetch_krakenfutures_fee,
+    fetch_okx_fee,
+)
 from app.engines.monitor import MonitorAction, evaluate_carry
 from app.engines.paper_trader import PaperFill, PaperTrader
 from app.engines.risk import CarryPositionRisk, StalenessGate, UtaAccountState
@@ -129,6 +135,11 @@ async def run() -> None:
         spot_taker_fee_bps=settings.taker_fee_for(settings.spot_exchange_list[0]),
         # both supported perp venues are 5bps taker (krakenfutures/okx tier base)
         perp_taker_fee_bps=settings.taker_fee_for(settings.perp_exchange_list[0]),
+        execution_mode=settings.execution_mode,
+        spot_maker_fee_bps=settings.maker_fee_for(settings.spot_exchange_list[0]),
+        perp_maker_fee_bps=settings.maker_fee_for(settings.perp_exchange_list[0]),
+        maker_timeout_seconds=settings.maker_timeout_seconds,
+        maker_fallback=settings.maker_fallback,
         slippage_buffer_bps=settings.slippage_buffer_bps,
         liquidity_haircut=settings.liquidity_haircut,
     )
@@ -149,6 +160,44 @@ async def run() -> None:
             logger.warning("minimal markets %s failed: %s", v, exc)
             venue_markets[v] = None
     spot_ex = settings.spot_exchange_list[0]
+
+    # Fee oracle: real fees detected from each venue's API at startup and
+    # every fee_refresh_hours. Config values are only the last-resort fallback.
+    fee_oracle = FeeOracle(settings)
+
+    def _fee_fetchers() -> dict:
+        fetchers: dict = {}
+        if "krakenfutures" in settings.perp_exchange_list:
+            kf_sym = settings.perp_symbols_for("krakenfutures")[0]
+            kf_base = kf_sym.split("/")[0]
+            raw = f"PF_{'XBT' if kf_base == 'BTC' else kf_base}USD"
+            fetchers["krakenfutures"] = lambda: fetch_krakenfutures_fee({kf_sym: raw})
+        if "okx" in settings.perp_exchange_list and settings.okx_api_key:
+            fetchers["okx"] = lambda: fetch_okx_fee(
+                settings.okx_api_key, settings.okx_api_secret,
+                settings.okx_api_passphrase, settings.okx_hostname,
+            )
+        if settings.kraken_spot_api_key:
+            fetchers["kraken"] = lambda: fetch_kraken_spot_fee(
+                settings.kraken_spot_api_key, settings.kraken_spot_api_secret,
+            )
+        else:
+            logger.warning(
+                "kraken spot fees NOT auto-detectable (falta kraken_spot_api_key "
+                "read-only): usando fallback config %s bps",
+                settings.taker_fee_bps_map.get("kraken"),
+            )
+        return fetchers
+
+    await fee_oracle.refresh(_fee_fetchers())
+
+    async def fee_refresh_loop() -> None:
+        while not stop.is_set():
+            await asyncio.sleep(float(settings.fee_refresh_hours) * 3600)
+            try:
+                await fee_oracle.refresh(_fee_fetchers())
+            except Exception as exc:
+                logger.warning("fee refresh failed: %s", exc)
 
     # Feeds are tracked per symbol so the screener can subscribe/unsubscribe
     # without restarting the engine. Each feed gets its own stop event.
@@ -360,6 +409,7 @@ async def run() -> None:
     reconcile_feeds(carry_ctx.eligible or set())
     if settings.screener_enabled:
         tasks.append(asyncio.create_task(screener_loop()))
+        tasks.append(asyncio.create_task(fee_refresh_loop()))
 
     async def close_carry(key: str, carry: OpenCarry, reason: str) -> None:
         nonlocal realized_pnl

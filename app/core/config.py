@@ -9,7 +9,7 @@ from __future__ import annotations
 from decimal import Decimal
 from functools import lru_cache
 
-from pydantic import field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.core.decimals import D, ZERO
@@ -50,6 +50,22 @@ class Settings(BaseSettings):
     # kraken spot taker 0.80% (kraken.com/pro/fees, Tier 1 - lo subieron de 0.40%),
     # krakenfutures 0.05%, okx perps 0.05% (okx.com/fees, regular user)
     taker_fee_bps: str = "kraken:80,krakenfutures:5,bybit:5.5,okx:5"
+    # maker fees tier base verificados 2026-11-13: kraken spot 0.40%, perps 0.02% ambos venues
+    maker_fee_bps: str = "kraken:40,krakenfutures:2,bybit:2,okx:2"
+    # ejecucion de entrada: "maker" (limit pasivo con timeout) o "taker" (cruza siempre)
+    execution_mode: str = "maker"
+    maker_timeout_seconds: int = 60
+    # que hacer si la limit no se llena a tiempo: "taker" (cruza y paga taker) o "cancel"
+    maker_fallback: str = "taker"
+    # fee oracle: guardrail - cambio relativo de taker fee que bloquea entradas (%)
+    fee_change_block_pct: Decimal = Decimal("20")
+    fee_refresh_hours: Decimal = Decimal("4")
+    # kraken SPOT api (read-only) opcional: sin ella kraken spot no es auto-detectable
+    kraken_spot_api_key: str = ""
+    kraken_spot_api_secret: str = ""
+    # runtime: fees detectadas por FeeOracle (nunca desde env)
+    detected_fees: dict[str, dict[str, Decimal]] = Field(default_factory=dict, exclude=True)
+    fees_blocked: set[str] = Field(default_factory=set, exclude=True)
     default_taker_fee_bps: Decimal = Decimal("40")
     # minimum funding-rate history samples before approving a carry
     min_funding_history: int = 30
@@ -206,7 +222,31 @@ class Settings(BaseSettings):
         return out
 
     def taker_fee_for(self, exchange: str) -> Decimal:
+        detected = self.detected_fees.get(exchange, {})
+        if "taker" in detected:
+            return detected["taker"]
         return self.taker_fee_bps_map.get(exchange, self.default_taker_fee_bps)
+
+    @property
+    def maker_fee_bps_map(self) -> dict[str, Decimal]:
+        out: dict[str, Decimal] = {}
+        for pair in self.maker_fee_bps.split(","):
+            if ":" in pair:
+                venue, bps = pair.split(":", 1)
+                out[venue.strip()] = D(bps.strip())
+        return out
+
+    def maker_fee_for(self, exchange: str) -> Decimal:
+        detected = self.detected_fees.get(exchange, {})
+        if "maker" in detected:
+            return detected["maker"]
+        return self.maker_fee_bps_map.get(exchange, self.default_taker_fee_bps)
+
+    def entry_fee_for(self, exchange: str) -> Decimal:
+        """Fee de la pata de entrada segun el modo de ejecucion."""
+        if self.execution_mode == "maker":
+            return self.maker_fee_for(exchange)
+        return self.taker_fee_for(exchange)
 
     @property
     def collateral_ratio_map(self) -> dict[str, Decimal]:

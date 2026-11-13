@@ -85,6 +85,8 @@ async def handle_funding_candidate(
     pkey = f"{spot_key}|{fkey}"
     if pkey in ctx.open_carries:
         return None
+    if ctx.settings.fees_blocked:
+        return None  # fee guardrail: entradas bloqueadas hasta revision manual
     history = await asyncio.to_thread(
         ctx.ticks.funding_history, rate.exchange, rate.symbol
     )
@@ -98,6 +100,8 @@ async def handle_funding_candidate(
         perp_taker_fee_bps=ctx.settings.taker_fee_for(rate.exchange),
         slippage_buffer_bps=ctx.settings.slippage_buffer_bps,
         min_net_profit_usd=ctx.settings.min_net_profit_usd,
+        spot_entry_fee_bps=ctx.settings.entry_fee_for(ctx.spot_ex),
+        perp_entry_fee_bps=ctx.settings.entry_fee_for(rate.exchange),
         historical_rates=history,
         min_history_samples=ctx.settings.min_funding_history,
     )
