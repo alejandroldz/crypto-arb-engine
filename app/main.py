@@ -22,7 +22,7 @@ import sys
 import time
 from collections import deque
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 
 from rich.console import Console
