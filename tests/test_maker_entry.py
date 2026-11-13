@@ -84,3 +84,20 @@ async def test_maker_timeout_cancel(tmp_path):
     spot, perp = book(99.98, 100.00), book(100.02, 100.04)
     fill = await t.open_carry(opp(), lambda: (spot, perp))
     assert fill is None
+
+
+async def test_taker_fallback_aborts_when_profit_floor_broken(tmp_path):
+    """Audit #6: fallback taker que convierte el trade en perdedor -> NO abre."""
+    repo = Repository(f"sqlite+aiosqlite:///{tmp_path}/t.sqlite")
+    await repo.init()
+    t = trader(repo, maker_fallback="taker", min_net_profit_usd=D("2"))
+    spot, perp = book(99.98, 100.00), book(100.02, 100.04)  # nunca cruza
+    # projected_net 30 a maker; el fallback taker suma (80-40)bps=4 USD spot +
+    # (5-2)bps=0.3 USD perp -> net ~25.7 > 2: ABRE (margen sobra)
+    fill = await t.open_carry(opp(), lambda: (spot, perp))
+    assert fill is not None
+    # misma mecanica pero suelo 26: 25.7 < 26 -> aborta
+    t2 = trader(repo, maker_fallback="taker", min_net_profit_usd=D("26"))
+    fill2 = await t2.open_carry(opp(), lambda: (spot, perp))
+    assert fill2 is None
+    assert len(await repo.open_positions()) == 1  # solo la primera

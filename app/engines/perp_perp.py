@@ -144,6 +144,7 @@ class PerpPerpTrader:
         maker_fallback: str = "taker",
         imbalance_tolerance: Decimal = D("0.001"),
         fee_currency: str = "USD",
+        min_net_profit_usd: Decimal = D("0"),
     ):
         self.repo = repo
         self.latency_ms = latency_ms
@@ -155,6 +156,7 @@ class PerpPerpTrader:
         self.maker_fallback = maker_fallback
         self.imbalance_tolerance = D(imbalance_tolerance)
         self.fee_currency = fee_currency
+        self.min_net_profit_usd = D(min_net_profit_usd)
 
     async def open_pair(
         self, opp: PerpPerpOpportunity, books_after_latency: BookSource
@@ -176,6 +178,20 @@ class PerpPerpTrader:
             long_px, short_px = buy.vwap, sell.vwap
             long_passive = short_passive = False
         qty = min(div(D(opp.notional), long_px), div(D(opp.notional), short_px))
+        # audit fix #6: re-price with the REAL fill modes before committing;
+        # abort if the taker fallback turned the trade into a loser
+        extra = ZERO
+        if self.execution_mode == "maker":
+            if not long_passive:
+                extra += bps_of(mul(qty, long_px), self.taker_fee_bps - self.maker_fee_bps)
+            if not short_passive:
+                extra += bps_of(mul(qty, short_px), self.taker_fee_bps - self.maker_fee_bps)
+        if extra > ZERO and D(opp.projected_net) - extra < self.min_net_profit_usd:
+            logger.info(
+                "pp entry aborted %s: fallback cost +%s USD, net %s < floor %s",
+                opp.base, extra, D(opp.projected_net) - extra, self.min_net_profit_usd,
+            )
+            return None
         long_fee = bps_of(mul(qty, long_px), self.maker_fee_bps if long_passive else self.taker_fee_bps)
         short_fee = bps_of(mul(qty, short_px), self.maker_fee_bps if short_passive else self.taker_fee_bps)
         position_id = await self.repo.open_position(
@@ -416,7 +432,9 @@ async def _try_open(ctx: PpContext, base: str) -> None:
                 short_interval_h=D(settings.funding_interval_h_for(short_ex)),
                 notional=budget,
                 holding_hours=int(settings.pp_holding_hours),
-                maker_fee_bps=maker_bps, taker_fee_bps=taker_bps,
+                maker_fee_bps=(maker_bps if settings.execution_mode == "maker"
+                               else taker_bps),
+                taker_fee_bps=taker_bps,
                 slippage_buffer_bps=D(settings.slippage_buffer_bps),
                 min_net_profit_usd=D(settings.pp_min_net_profit_usd),
                 min_history_samples=int(settings.min_funding_history),

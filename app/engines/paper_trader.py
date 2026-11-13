@@ -16,7 +16,7 @@ from decimal import Decimal
 from typing import Callable
 
 from app.connectors.normalizer import L2OrderBook
-from app.core.decimals import D, bps_of, div, mul
+from app.core.decimals import D, ZERO, bps_of, div, mul
 from app.database.repository import Repository
 from app.engines.arbitrage import FundingOpportunity
 from app.engines.liquidity import InsufficientDepth, vwap_for_base, vwap_for_quote
@@ -51,6 +51,7 @@ class PaperTrader:
         perp_maker_fee_bps: Decimal | None = None,
         maker_timeout_seconds: int = 60,
         maker_fallback: str = "taker",
+        min_net_profit_usd: Decimal = Decimal("0"),
     ):
         self.repo = repo
         self.latency_ms = latency_ms
@@ -64,6 +65,10 @@ class PaperTrader:
         self.perp_maker_fee_bps = D(perp_maker_fee_bps) if perp_maker_fee_bps is not None else self.perp_taker_fee_bps
         self.maker_timeout_seconds = maker_timeout_seconds
         self.maker_fallback = maker_fallback
+        # revalidation floor: if the REAL fill mode (e.g. taker fallback)
+        # costs more than the detection assumed and the net drops below
+        # this floor, the entry is aborted instead of opening a loser
+        self.min_net_profit_usd = D(min_net_profit_usd)
 
     def _fee(self, leg: str, notional: Decimal, *, passive: bool = False) -> Decimal:
         if leg == "spot":
@@ -147,9 +152,24 @@ class PaperTrader:
 
             # delta-neutral: equal base exposure on both legs
             qty = min(buy.base_qty, short.base_qty)
+            spot_passive = perp_passive = False
             spot_fee = self._fee("spot", mul(qty, buy.vwap))
             perp_fee = self._fee("perp", mul(qty, short.vwap))
             buy_vwap, short_vwap = buy.vwap, short.vwap
+        # audit fix #6: the detection priced entries at maker fees (in maker
+        # mode). If a leg actually crossed as taker, re-price the delta and
+        # abort when the trade no longer clears the profit floor.
+        extra = ZERO
+        if self.execution_mode == "maker" and not spot_passive:
+            extra += bps_of(mul(qty, buy_vwap), self.spot_taker_fee_bps - self.spot_maker_fee_bps)
+        if self.execution_mode == "maker" and not perp_passive:
+            extra += bps_of(mul(qty, short_vwap), self.perp_taker_fee_bps - self.perp_maker_fee_bps)
+        if extra > ZERO and D(opp.projected_net) - extra < self.min_net_profit_usd:
+            logger.info(
+                "entry aborted %s: taker fallback costs +%s USD, net %s < floor %s",
+                opp.symbol, extra, D(opp.projected_net) - extra, self.min_net_profit_usd,
+            )
+            return None
         spot_book, perp_book = books_after_latency()
 
         position_id = await self.repo.open_position(

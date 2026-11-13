@@ -150,6 +150,7 @@ async def run() -> None:
         perp_maker_fee_bps=settings.maker_fee_for(settings.perp_exchange_list[0]),
         maker_timeout_seconds=settings.maker_timeout_seconds,
         maker_fallback=settings.maker_fallback,
+        min_net_profit_usd=settings.min_net_profit_usd,
         slippage_buffer_bps=settings.slippage_buffer_bps,
         liquidity_haircut=settings.liquidity_haircut,
     )
@@ -366,6 +367,7 @@ async def run() -> None:
                 execution_mode=settings.execution_mode,
                 maker_timeout_seconds=int(settings.maker_timeout_seconds),
                 maker_fallback=settings.maker_fallback,
+                min_net_profit_usd=D(settings.pp_min_net_profit_usd),
             ),
             repo=repo,
             ticks=ticks,
