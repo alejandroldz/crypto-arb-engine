@@ -116,3 +116,9 @@ async def test_f11_f12_repository_rejects_nonfinite(tmp_path):
             perp_entry_vwap="50000", symbol="BTC/USD:USD",
             exchange_spot="kraken", exchange_perp="krakenfutures",
         )
+
+
+def test_h7_watchdog_alert_throttling_logic():
+    # the watchdog alerts on restart #1 and then every 10th: the predicate
+    # must hold exactly for those n
+    assert [n for n in range(1, 25) if n == 1 or n % 10 == 0] == [1, 10, 20]

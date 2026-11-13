@@ -1024,3 +1024,13 @@ _duckdb.ResourceInUseException: Resource In Use Error: connection is busy with a
 2026-11-13 22:52:07,953 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007119110904721193 vs polled mean -0.000002775308365831 - entries quarantined
 2026-11-13 22:52:16,334 main WARNING funding source mismatch okx:SOL/USD:USD-310404: screener mean 0.000089010610287757 vs polled mean 0.00002966971136426410256410256410 - entries quarantined
 2026-11-13 22:52:16,334 main WARNING funding source mismatch okx:SOL/USD:USD-310404: screener mean 0.000089010610287757 vs polled mean 0.00002966971136426410256410256410 - entries quarantined
+2026-11-13 22:52:38,744 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007119110904721193 vs polled mean -0.000002757844616994398496240601504 - entries quarantined
+2026-11-13 22:52:38,744 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007119110904721193 vs polled mean -0.000002757844616994398496240601504 - entries quarantined
+2026-11-13 22:53:00,579 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 22:53:00,579 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 22:53:01,311 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 22:53:01,311 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 22:53:09,416 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007119110904721193 vs polled mean -0.000002740638820128753731343283582 - entries quarantined
+2026-11-13 22:53:09,416 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007119110904721193 vs polled mean -0.000002740638820128753731343283582 - entries quarantined
+2026-11-13 22:53:40,759 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007119110904721193 vs polled mean -0.000002723689152139696296296296296 - entries quarantined
+2026-11-13 22:53:40,759 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007119110904721193 vs polled mean -0.000002723689152139696296296296296 - entries quarantined

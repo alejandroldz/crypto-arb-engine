@@ -47,8 +47,9 @@ class Settings(BaseSettings):
     # margined expiry futures with perp-style 8h funding, NOT the global
     # inverse swap BTC/USD:BTC. ccxt symbol for BTC-USD_UM_XPERP-310404:
     # exchange -> perp symbols (';' separates exchanges). SOL trades only
-    # on OKX: on Kraken its funding is weak/unstable (~1.2% APR, 59%
-    # positive intervals, 30d) vs OKX (~9.9% APR, 97%) - verified 2026-11-13.
+    # on OKX: on Kraken its funding is weak (~3.4% APR, 58% positive
+    # intervals, 30d) vs OKX (~9.9% APR, 97%) - rechecked 2026-11-13, the
+    # config decision stands.
     # NOTE: krakenfutures PF perps pay funding HOURLY, okx every 8h.
     perp_symbol_map: str = (
         "krakenfutures:BTC/USD:USD,ETH/USD:USD;"
@@ -79,19 +80,6 @@ class Settings(BaseSettings):
     sizing_full_score: Decimal = Decimal("0.5")
     sizing_min_notional_usd: Decimal = Decimal("250")
     sizing_max_notional_usd: Decimal = Decimal("5000")
-    # perp-perp (modulo 1): arbitraje de funding entre venues, sin pata spot
-    perp_perp_enabled: bool = False  # activado via .env tras validacion
-    pp_min_net_profit_usd: Decimal = Decimal("2")
-    pp_holding_hours: int = 720
-    pp_max_notional_per_venue_usd: Decimal = Decimal("4000")
-    pp_max_notional_per_pair_usd: Decimal = Decimal("2500")
-    pp_min_notional_usd: Decimal = Decimal("250")
-    # frescura exigida a los libros para operar PP (ms) - un venue caido
-    # no es operable
-    max_book_age_ms: int = 2000
-    # F06: spread relativo maximo por libro para ENTRAR (bps). Un libro con
-    # bid=1/ask=100 es una senal economicamente falsa, no una oportunidad
-    max_book_spread_bps: Decimal = Decimal("50")
     # perp-perp (modulo 1): arbitraje de funding entre venues, sin pata spot
     perp_perp_enabled: bool = False  # activado via .env tras validacion
     pp_min_net_profit_usd: Decimal = Decimal("2")

@@ -8,6 +8,8 @@ from app.connectors import screener_io
 
 
 class _Resp:
+    status = 200
+
     def __init__(self, payload):
         self._payload = payload
 
@@ -91,3 +93,27 @@ async def test_okx_volume_24h_is_usd_not_contracts(monkeypatch):
     # 8116.2014 * 68746.4 ~ 558M USD; the bug reported 81.2M (raw contracts)
     assert m.volume_24h_usd == pytest.approx(8116.2014 * 68746.4, rel=1e-6)
     assert m.volume_24h_usd > 5e8
+
+
+@pytest.mark.asyncio
+async def test_c5_http_error_skips_venue_not_empty_success(monkeypatch):
+    """caos C5: an HTTP 500 with a parseable body must not read as 'empty
+    universe' (eligibility churn). Venue skipped, metrics list empty by
+    ABSENCE, and the error is logged."""
+
+    class _ErrResp(_Resp):
+        status = 500
+
+    class _ErrSession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        def get(self, url, params=None):
+            return _ErrResp({"error": "boom"})
+
+    monkeypatch.setattr(screener_io.aiohttp, "ClientSession", lambda: _ErrSession())
+    assert await screener_io.fetch_okx_xperp_metrics() == []
+    assert await screener_io.fetch_krakenfutures_metrics() == []

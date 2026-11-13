@@ -5,10 +5,13 @@ converts to Decimal at the boundary). All endpoints are public, no keys.
 """
 from __future__ import annotations
 
+import logging
 import statistics
 from dataclasses import dataclass
 
 import aiohttp
+
+logger = logging.getLogger(__name__)
 import ccxt.async_support as ccxt
 
 OKX_HOST = "https://my.okx.com"
@@ -46,10 +49,16 @@ async def fetch_okx_xperp_metrics(history_limit: int = 100,
         async with sess.get(
             f"{OKX_HOST}/api/v5/public/instruments", params={"instType": "FUTURES"}
         ) as r:
+            if r.status != 200:
+                logger.error("okx instruments HTTP %s - venue skipped this sweep", r.status)
+                return out
             instruments = (await r.json()).get("data", [])
         async with sess.get(
             f"{OKX_HOST}/api/v5/market/tickers", params={"instType": "FUTURES"}
         ) as r:
+            if r.status != 200:
+                logger.error("okx tickers HTTP %s - venue skipped this sweep", r.status)
+                return out
             tickers = {t["instId"]: t for t in (await r.json()).get("data", [])}
         xperps = [
             i for i in instruments
@@ -113,6 +122,9 @@ async def fetch_krakenfutures_metrics(history_limit: int = 720,
     out: list[RawPerpMetrics] = []
     async with aiohttp.ClientSession() as sess:
         async with sess.get(f"{KRAKEN_FUT}/v3/tickers") as r:
+            if r.status != 200:
+                logger.error("kraken tickers HTTP %s - venue skipped this sweep", r.status)
+                return out
             tickers = (await r.json()).get("tickers", [])
         for t in tickers:
             parsed = _kraken_unified(t.get("symbol", ""))

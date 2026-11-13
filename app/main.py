@@ -292,7 +292,12 @@ async def run() -> None:
                 logger.error(
                     "feed %s died (%s); restart #%d in %ss", name, exc, n, backoff
                 )
-                await notifier.send(f"FEED DIED {name}: {exc} - restart #{n}")
+                # caos H7: a permanently-failing feed retried forever used to
+                # spam Telegram on EVERY restart (~1/min). Alert the 1st
+                # death and then once every 10 restarts; recovery alerts
+                # separately below.
+                if n == 1 or n % 10 == 0:
+                    await notifier.send(f"FEED DIED {name}: {exc} - restart #{n}")
                 feed_tasks.pop(name, None)
                 await asyncio.sleep(backoff)
                 if name not in feed_tasks:  # the screener may have cut it
