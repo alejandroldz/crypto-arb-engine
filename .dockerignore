@@ -1,0 +1,14 @@
+.env
+.git
+.venv
+__pycache__
+*.pyc
+engine.log
+soak.log
+funding_log.csv
+funding_log_*.bak
+*.db
+*.duckdb
+screener_state.json
+fees_state.json
+.pytest_cache

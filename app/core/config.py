@@ -155,11 +155,24 @@ class Settings(BaseSettings):
     okx_api_passphrase: str = ""
     # OKX Europe (MiFID entity) keys live on my.okx.com, not www.okx.com
     # (verified live 2026-11-13: www returns 50119 "API key doesn't exist")
+    # SECURITY: validated against an allowlist - API credentials are sent
+    # to this host, so a typo/attacker-controlled value must fail closed
     okx_hostname: str = "my.okx.com"
 
     # telegram alerts
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
+
+    @field_validator("okx_hostname")
+    @classmethod
+    def _okx_host_allowlist(cls, v: str) -> str:
+        allowed = {"my.okx.com", "www.okx.com", "okx.com", "app.okx.com",
+                   "aws.okx.com", "eea.okx.com"}
+        if v not in allowed:
+            raise ValueError(
+                f"okx_hostname {v!r} not in allowlist {sorted(allowed)}"
+            )
+        return v
 
     @field_validator(
         "min_net_profit_usd",

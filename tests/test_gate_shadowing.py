@@ -25,3 +25,30 @@ def test_staleness_gate_name_is_never_reassigned():
     value = assignments[0].value
     assert isinstance(value, ast.Call)
     assert getattr(value.func, "id", "") == "StalenessGate"
+
+
+def test_okx_hostname_allowlist():
+    """Security: credentials only go to known OKX domains."""
+    import pytest
+
+    from app.core.config import Settings
+
+    Settings(okx_hostname="my.okx.com")  # allowed
+    with pytest.raises(Exception):
+        Settings(okx_hostname="evil-okx.example.com")
+    with pytest.raises(Exception):
+        Settings(okx_hostname="my.okx.com.evil.com")
+
+
+def test_telegram_failure_logged_without_token(caplog):
+    """Security: a failing alert is visible, the token is not."""
+    import asyncio
+
+    from app.ui.notifier import TelegramNotifier
+
+    n = TelegramNotifier(bot_token="SECRETTOKEN123", chat_id="42", timeout_s=1)
+    with caplog.at_level("WARNING"):
+        ok = asyncio.run(n.send("hi"))  # no network in tests -> fails
+    assert ok is False
+    assert any("telegram alert failed" in r.message for r in caplog.records)
+    assert "SECRETTOKEN123" not in caplog.text
