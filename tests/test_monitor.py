@@ -1,4 +1,5 @@
 """Orchestration monitoring: accrual, missed payments, flips, liquidation."""
+from types import SimpleNamespace
 from datetime import datetime, timedelta, timezone
 
 from app.connectors.normalizer import FundingRate, L2OrderBook, OrderBookLevel
@@ -144,3 +145,15 @@ def test_uta_monitor_ignores_isolated_liquidation_formula():
     d_iso = evaluate_carry(last_payment_ts=T0, rate=None, perp_book=book("51500"),
                            risk=risk5x, **KW)
     assert d_iso.action is MonitorAction.UNWIND
+
+
+def test_books_fresh_guard():
+    from app.engines.monitor import books_fresh
+    import time
+
+    now = time.monotonic_ns()
+    fresh = SimpleNamespace(local_ts_ns=now)
+    stale = SimpleNamespace(local_ts_ns=now - 10_000_000_000)
+    assert books_fresh(now, 2_000_000_000, fresh, fresh)
+    assert not books_fresh(now, 2_000_000_000, fresh, stale)
+    assert not books_fresh(now, 2_000_000_000, fresh, None)

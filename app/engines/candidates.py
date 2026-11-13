@@ -43,6 +43,7 @@ class OpenCarry:
     accrual_uncertain: bool = False
     uta: "UtaAccountState | None" = None
     mmr_warned: bool = False
+    books_stale_warned: bool = False
 
 
 @dataclass

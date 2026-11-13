@@ -38,6 +38,15 @@ class MonitorDecision:
     account_mmr: Decimal | None = None
 
 
+def books_fresh(now_ns: int, max_age_ns: int, *books) -> bool:
+    """op.#4: no price-driven decision (MMR, liquidation, unwind) may use a
+    dead venue's last-known snapshot. Freshness of BOTH legs is required."""
+    for b in books:
+        if b is None or (now_ns - b.local_ts_ns) > max_age_ns:
+            return False
+    return True
+
+
 def evaluate_carry(
     *,
     qty_base: Decimal,

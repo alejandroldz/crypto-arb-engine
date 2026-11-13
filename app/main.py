@@ -62,7 +62,7 @@ from app.engines.fee_oracle import (
     fetch_okx_fee,
 )
 from app.engines.liquidity import InsufficientDepth
-from app.engines.monitor import MonitorAction, evaluate_carry
+from app.engines.monitor import books_fresh, MonitorAction, evaluate_carry
 from app.engines.paper_trader import PaperFill, PaperTrader
 from app.engines.risk import CarryPositionRisk, StalenessGate, UtaAccountState
 from app.engines import screener as scr
@@ -735,7 +735,25 @@ async def run() -> None:
                             breaker.halt(
                                 f"real account MMR emergency: {health.account_mmr}"
                             )
+            max_book_age_ns = int(settings.max_book_age_ms) * 1_000_000
             for key, carry in list(open_carries.items()):
+                # op.#4: a venue down for hours must not drive decisions with
+                # its last-known prices. Defer (funding accrual resumes on
+                # recovery, it is watermark-based) and alert once per episode.
+                if not books_fresh(
+                    now_ns, max_book_age_ns,
+                    books.get(carry.spot_key), books.get(carry.perp_key),
+                ):
+                    if not carry.books_stale_warned:
+                        carry.books_stale_warned = True
+                        logger.warning("carry %s: stale books, management deferred", key)
+                        await notifier.send(
+                            f"STALE VENUE {key}: gestion diferida (libro viejo)"
+                        )
+                    continue
+                if carry.books_stale_warned:
+                    carry.books_stale_warned = False
+                    await notifier.send(f"VENUE RECOVERED {key}: gestion reanudada")
                 decision = evaluate_carry(
                     qty_base=carry.fill.qty_base,
                     perp_entry_vwap=carry.fill.perp_vwap,

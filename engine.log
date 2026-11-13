@@ -462,3 +462,7 @@ aiohttp.client_exceptions.ClientConnectionResetError: Cannot write to closing tr
 2026-11-13 18:49:01,680 main INFO real account health okx: equity 0 mmr 0
 2026-11-13 18:50:01,549 main INFO real account health krakenfutures: equity 0 mmr 0
 2026-11-13 18:50:02,229 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 18:51:01,961 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 18:51:02,789 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 18:52:02,133 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 18:52:02,936 main INFO real account health okx: equity 0 mmr 0
