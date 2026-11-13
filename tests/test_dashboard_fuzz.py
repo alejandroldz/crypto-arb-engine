@@ -162,3 +162,31 @@ def test_f24_positions_survives_corrupt_sqlite(tmp_path, monkeypatch):
     bad.write_bytes(b"not a sqlite database at all" * 100)
     monkeypatch.setattr(fd, "SQLITE_PATH", bad)
     assert fd.positions().empty
+
+
+def test_f44_positions_numeric_columns_are_coerced(tmp_path, monkeypatch):
+    """F44 (F1 regression): Decimals persist as TEXT; without coercion,
+    funding_collected.sum() concatenated strings and the dashboard died."""
+    import asyncio
+    from decimal import Decimal
+
+    import front.data as fd
+    from app.database.repository import Repository
+
+    async def seed():
+        repo = Repository(f"sqlite+aiosqlite:///{tmp_path}/state.db")
+        await repo.init()
+        await repo.open_position(
+            qty_base=Decimal("0.001"), notional=Decimal("50"),
+            spot_entry_vwap=Decimal("50000"), perp_entry_vwap=Decimal("50000"),
+            symbol="BTC/USD:USD", exchange_spot="kraken",
+            exchange_perp="krakenfutures",
+        )
+        await repo.close()
+
+    asyncio.run(seed())
+    monkeypatch.setattr(fd, "SQLITE_PATH", tmp_path / "state.db")
+    df = fd.positions()
+    assert len(df) == 1
+    assert float(df["funding_collected"].sum()) == 0.0  # no ValueError
+    assert float(df["notional"].sum()) == 50.0

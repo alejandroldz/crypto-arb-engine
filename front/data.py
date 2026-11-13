@@ -74,7 +74,7 @@ def positions() -> pd.DataFrame:
         return pd.DataFrame()
     con = sqlite3.connect(f"file:{SQLITE_PATH}?immutable=1", uri=True)
     try:
-        return pd.read_sql_query(
+        df = pd.read_sql_query(
             """
             SELECT symbol, exchange_spot, exchange_perp, notional,
                    funding_collected, status, opened_at, realized_pnl_usd
@@ -82,6 +82,12 @@ def positions() -> pd.DataFrame:
             """,
             con,
         )
+        # F44: Decimals are persisted as TEXT (F1); without coercion a
+        # .sum() CONCATENATES the strings and the dashboard dies
+        for col in ("notional", "funding_collected", "realized_pnl_usd"):
+            if col in df:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+        return df
     except Exception:
         # F24: pandas wraps sqlite3.DatabaseError in its own
         # pandas.errors.DatabaseError, which sqlite3.Error does NOT catch
