@@ -15,13 +15,26 @@ MAX_REPRESENTABLE = Decimal("1e20")
 
 
 def check_magnitude(value, what: str) -> Decimal:
-    """F09: reject non-finite or non-representable values at the boundary."""
-    d = D(value)
-    if not d.is_finite():
-        raise ValueError(f"non-finite {what}")
-    if abs(d) >= MAX_REPRESENTABLE:
-        raise ValueError(f"{what} exceeds DECIMAL(38,18) bounds: {d}")
-    return d
+    """F09: reject non-finite or non-representable values at the boundary.
+
+    fuzz F7: hostile payloads must surface as ValueError, never as raw
+    OverflowError/TypeError/ArithmeticError leaking out of the guard."""
+    try:
+        d = D(value)
+        if not d.is_finite():
+            raise ValueError(f"non-finite {what}")
+        if abs(d) >= MAX_REPRESENTABLE:
+            raise ValueError(f"{what} exceeds DECIMAL(38,18) bounds: {d}")
+        return d
+    except (OverflowError, TypeError, ArithmeticError) as exc:
+        raise ValueError(f"unusable {what}: {value!r}") from exc
+
+
+def aware(dt: datetime) -> datetime:
+    """fuzz F8: duckdb persistence is UTC-naive; ccxt payloads are aware.
+    Mixing them in a subtraction/comparison raises TypeError. Naive is UTC
+    by convention everywhere in this codebase."""
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
 
 
 def funding_rate_plausible(rate) -> Decimal:
@@ -42,8 +55,8 @@ def remote_book_stale(
     explicit policy choice: the local monotonic clock governs then."""
     if exchange_ts is None:
         return False
-    now = now or datetime.now(timezone.utc)
-    return (now - exchange_ts).total_seconds() > max_age_s
+    now = aware(now or datetime.now(timezone.utc))
+    return (now - aware(exchange_ts)).total_seconds() > max_age_s
 
 
 def sequence_regressed(prev_seq, prev_ts, new_seq, new_ts) -> bool:
@@ -53,6 +66,7 @@ def sequence_regressed(prev_seq, prev_ts, new_seq, new_ts) -> bool:
         return False
     if int(new_seq) > int(prev_seq):
         return False
-    if new_ts is not None and prev_ts is not None and new_ts > prev_ts:
+    if (new_ts is not None and prev_ts is not None
+            and aware(new_ts) > aware(prev_ts)):
         return False
     return True

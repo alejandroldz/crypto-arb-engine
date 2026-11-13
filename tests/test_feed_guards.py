@@ -119,3 +119,46 @@ def test_screener_from_raw_rejects_non_finite():
     assert scr.from_raw(raw_metrics(interval=float("nan"))) is None
     assert scr.from_raw(raw_metrics(interval=0.0)) is None
     assert scr.from_raw(raw_metrics()) is not None
+
+
+def test_f7_check_magnitude_hostile_inputs_raise_valueerror():
+    import pytest
+
+    from app.core.feed_guards import check_magnitude
+    for bad in ("1e999999999999", object(), [1], {"a": 1}, "NaN", "Infinity"):
+        with pytest.raises(ValueError):
+            check_magnitude(bad, "test value")
+
+
+def test_f8_naive_aware_mixed_timestamps():
+    from datetime import datetime, timedelta, timezone
+
+    from app.core.feed_guards import remote_book_stale, sequence_regressed
+    naive_old = datetime(2026, 11, 13, 10, 0)  # UTC-naive (duckdb style)
+    aware_now = datetime(2026, 11, 13, 10, 2, tzinfo=timezone.utc)
+    assert remote_book_stale(naive_old, now=aware_now) is True
+    assert remote_book_stale(aware_now, now=naive_old + timedelta(minutes=2)) is False
+    # sequence guard with mixed tz: no TypeError
+    assert sequence_regressed(5, naive_old, 5, aware_now) is True
+
+
+def test_f16_monitor_accepts_naive_last_payment_ts():
+    from datetime import datetime, timedelta, timezone
+
+    from app.connectors.normalizer import FundingRate
+    from app.core.decimals import D
+    from app.engines.monitor import evaluate_carry
+    from app.engines.risk import CarryPositionRisk
+    naive = datetime(2026, 11, 13, 8, 0)
+    rate = FundingRate(
+        exchange="krakenfutures", symbol="BTC/USD:USD", rate="0.0003",
+        local_ts_ns=1,
+        next_funding_ts=datetime(2026, 11, 13, 9, 0, tzinfo=timezone.utc),
+    )
+    d = evaluate_carry(
+        qty_base=D("0.01"), perp_entry_vwap=D("50000"),
+        last_payment_ts=naive, rate=rate, perp_book=None,
+        risk=CarryPositionRisk.build(D("50000"), D("1")),
+        liquidation_buffer_pct=D("15"),
+    )
+    assert d.accrual != 0

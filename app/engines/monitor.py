@@ -13,6 +13,7 @@ from decimal import Decimal
 from enum import Enum
 
 from app.connectors.normalizer import FundingRate, L2OrderBook
+from app.core.feed_guards import aware
 from app.core.decimals import D, ZERO, mul
 from app.engines.risk import (
     CarryPositionRisk,
@@ -96,9 +97,9 @@ def evaluate_carry(
             # down - adopt the current timestamp, accrue nothing, flag it
             new_ts = rate.next_funding_ts
             uncertain = True
-        elif rate.next_funding_ts < last_payment_ts:
+        elif aware(rate.next_funding_ts) < aware(last_payment_ts):
             uncertain = True  # out-of-order/replayed snapshot: ignore payment
-        elif rate.next_funding_ts > last_payment_ts:
+        elif aware(rate.next_funding_ts) > aware(last_payment_ts):
             # dif D5: the payment at the settlement that just passed is the
             # rate of the period that ENDED. OKX reports the new period's
             # rate right after the cut, so accrue with the last rate
@@ -112,7 +113,7 @@ def evaluate_carry(
                 accrual_rate = prev_rate.rate
             # signed: a negative rate is a cost and must be accounted (F04)
             accrual = mul(mul(D(qty_base), D(perp_entry_vwap)), D(accrual_rate))
-            gap_s = (rate.next_funding_ts - last_payment_ts).total_seconds()
+            gap_s = (aware(rate.next_funding_ts) - aware(last_payment_ts)).total_seconds()
             if gap_s > Decimal("3") * D(rate.interval_hours) * 3600 / 2:
                 uncertain = True  # payments were missed while unobserved
             new_ts = rate.next_funding_ts
