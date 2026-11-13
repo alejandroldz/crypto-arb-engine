@@ -122,9 +122,14 @@ class FeeOracle:
 
     def _load_state(self) -> dict:
         try:
-            return json.loads(self.state_path.read_text())
+            raw = json.loads(self.state_path.read_text())
         except (OSError, json.JSONDecodeError):
             return {}
+        if not isinstance(raw, dict):
+            # fuzz F36: valid JSON of the wrong shape silently froze fees
+            logger.error("fees state is not a dict (%r) - ignoring", type(raw).__name__)
+            return {}
+        return raw
 
     def _save_state(self, state: dict) -> None:
         self.state_path.write_text(json.dumps(state, indent=1, default=str))

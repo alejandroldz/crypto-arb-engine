@@ -152,8 +152,15 @@ def normalize_funding(exchange_id: str, symbol: str, raw: dict) -> FundingRate:
     # accrual watermark it always jumps exactly one interval, defeating the
     # missed-payments gap check.
     next_ts = raw.get("fundingTimestamp") or raw.get("nextFundingTimestamp")
-    if next_ts:
-        next_funding_ts = datetime.fromtimestamp(next_ts / 1000, tz=timezone.utc)
+    try:
+        next_funding_ts = (
+            datetime.fromtimestamp(next_ts / 1000, tz=timezone.utc)
+            if next_ts else None
+        )
+    except (TypeError, ValueError, OSError, OverflowError):
+        next_funding_ts = None  # fuzz F35: hostile ts = absent, synthesize
+    if next_funding_ts is not None:
+        pass
     elif interval_hours > 0:
         # dif D2: Kraken gives no timestamps - synthesize the next boundary
         # so the accrual watermark advances (funding was never accrued!).
@@ -167,7 +174,9 @@ def normalize_funding(exchange_id: str, symbol: str, raw: dict) -> FundingRate:
     # stale trailing rate).
     predicted = raw.get("nextFundingRate")
     if predicted is not None:
-        predicted = str(check_magnitude(D(str(predicted)), "predicted rate"))
+        # fuzz F34: same quarantine as the settled rate - an absurd
+        # prediction would flip-unwind every position on the venue
+        predicted = str(funding_rate_plausible(D(str(predicted))))
     return FundingRate(
         exchange=exchange_id,
         symbol=symbol,

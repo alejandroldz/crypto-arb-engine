@@ -50,7 +50,8 @@ class Repository:
                 exchange_perp=fields["exchange_perp"],
                 spot_symbol=fields.get("spot_symbol", ""),
                 holding_intervals=fields.get("holding_intervals", 90),
-                entry_funding_rate=D(fields.get("entry_funding_rate", "0")),
+                entry_funding_rate=_finite(
+                    fields.get("entry_funding_rate", "0"), "entry_funding_rate"),
             )
             s.add(pos)
             await s.commit()
@@ -112,13 +113,15 @@ class Repository:
             exchange=fields["exchange"],
             symbol=fields["symbol"],
             side=fields["side"],
-            amount=D(fields["amount"]),
-            price_usd_equivalent=D(fields["price_usd_equivalent"]),
-            fee_amount=D(fields["fee_amount"]),
+            amount=_finite(fields["amount"], "amount"),
+            price_usd_equivalent=_finite(
+                fields["price_usd_equivalent"], "price_usd_equivalent"),
+            fee_amount=_finite(fields["fee_amount"], "fee_amount"),
             fee_currency=fields["fee_currency"],
             timestamp_utc=fields["timestamp_utc"],
             net_pnl_usd=(
-                D(fields["net_pnl_usd"]) if fields.get("net_pnl_usd") is not None else None
+                _finite(fields["net_pnl_usd"], "net_pnl_usd")
+                if fields.get("net_pnl_usd") is not None else None
             ),
             kind=fields.get("kind", "paper"),
         )
@@ -140,7 +143,8 @@ class Repository:
                 exchange_perp=position_fields["exchange_perp"],
                 spot_symbol=position_fields.get("spot_symbol", ""),
                 holding_intervals=position_fields.get("holding_intervals", 90),
-                entry_funding_rate=D(position_fields.get("entry_funding_rate", "0")),
+                entry_funding_rate=_finite(
+                    position_fields.get("entry_funding_rate", "0"), "entry_funding_rate"),
             )
             s.add(pos)
             await s.flush()  # assign pos.id inside the transaction
@@ -194,9 +198,9 @@ class Repository:
                 leg=fields["leg"],
                 action=fields["action"],
                 side=fields["side"],
-                qty_base=D(fields["qty_base"]),
-                vwap=D(fields["vwap"]),
-                fee=D(fields["fee"]),
+                qty_base=_finite(fields["qty_base"], "qty_base"),
+                vwap=_finite(fields["vwap"], "vwap"),
+                fee=_finite(fields["fee"], "fee"),
                 fee_currency=fields["fee_currency"],
                 kind=fields.get("kind", "paper"),
             )
