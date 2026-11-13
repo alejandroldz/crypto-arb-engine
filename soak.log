@@ -116,3 +116,9 @@ margin: UNIFIED 90% util | BTC ratio 95% | MMR n/a (warn 65%, unwind 75%) | max
 2026-11-13 22:10:03,449 main INFO real account health okx: equity 0 mmr 0
 2026-11-13 22:10:12,765 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007131817901248971 vs polled mean -0.000006840568633368729166666666667 - entries quarantined
 2026-11-13 22:10:43,625 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007131817901248971 vs polled mean -0.000006710156375548612244897959184 - entries quarantined
+2026-11-13 22:11:02,561 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 22:11:03,223 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 22:11:14,720 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007131817901248971 vs polled mean -0.00000658495647553144 - entries quarantined
+2026-11-13 22:11:45,598 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007131817901248971 vs polled mean -0.000006464669462164352941176470588 - entries quarantined
+2026-11-13 22:12:02,721 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-13 22:12:03,364 main INFO real account health okx: equity 0 mmr 0

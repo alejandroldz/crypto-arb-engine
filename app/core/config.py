@@ -381,7 +381,14 @@ class Settings(BaseSettings):
 
     @property
     def target_quote_size_list(self) -> list[Decimal]:
-        return [D(s.strip()) for s in self.target_quote_sizes.split(",") if s.strip()]
+        sizes = [D(s.strip()) for s in self.target_quote_sizes.split(",") if s.strip()]
+        # fuzz F6: an empty list died later as a bare IndexError at startup
+        if not sizes:
+            raise ValueError("target_quote_sizes must name at least one size")
+        for s in sizes:
+            if not s.is_finite() or s <= ZERO:
+                raise ValueError(f"target_quote_sizes: {s} must be positive and finite")
+        return sizes
 
 
 @lru_cache

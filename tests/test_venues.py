@@ -65,3 +65,13 @@ def test_malformed_decimal_field_names_value():
     with pytest.raises(ValidationError) as exc:
         Settings(min_net_profit_usd="abc")
     assert "min_net_profit_usd" in str(exc.value)  # antes: InvalidOperation cruda
+
+
+def test_target_quote_sizes_empty_or_nonpositive():
+    import pytest
+
+    from app.core.config import Settings
+    with pytest.raises(ValueError, match="target_quote_sizes"):
+        Settings(target_quote_sizes="").target_quote_size_list
+    with pytest.raises(ValueError, match="target_quote_sizes"):
+        Settings(target_quote_sizes="0,-5").target_quote_size_list
