@@ -293,3 +293,5 @@ client_session: <aiohttp.client.ClientSession object at 0x7f3a321efb90>
 2026-11-13 16:39:41,514 main INFO real account health okx: equity 0 mmr 0
 2026-11-13 16:40:40,841 main INFO real account health krakenfutures: equity 0 mmr 0
 2026-11-13 16:40:41,604 main INFO real account health okx: equity 0 mmr 0
+2026-11-13 17:09:22,667 ingestion WARNING book feed krakenfutures BTC/USD:USD: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-13 17:09:22,668 ingestion WARNING book feed krakenfutures ETH/USD:USD: NetworkError: Connection closed by remote server, closing code 1006
