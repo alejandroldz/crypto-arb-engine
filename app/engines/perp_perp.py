@@ -30,7 +30,8 @@ from app.engines.liquidity import InsufficientDepth, vwap_for_base, vwap_for_quo
 
 logger = logging.getLogger(__name__)
 
-NS_PER_HOUR = 3_600_000_000_000
+NS_PER_SECOND = 1_000_000_000
+NS_PER_HOUR = 3_600 * NS_PER_SECOND
 
 BookSource = Callable[[], tuple[L2OrderBook, L2OrderBook]]  # (long_book, short_book)
 
@@ -372,6 +373,10 @@ class PpPosition:
     last_accrual_ns_long: int
     last_accrual_ns_short: int
     accrual_uncertain: bool = False  # op.#14: gap-capped accrual, alerted
+    # caos menor: a deferred unwind used to retry forever with ONE initial
+    # log line - the pair could sit open for days unnoticed
+    unwind_deferred_ns: int = 0  # monotonic_ns of first deferral (0 = none)
+    unwind_alerted_ns: int = 0   # last Telegram alert for the deferral
 
 
 @dataclass
@@ -583,6 +588,24 @@ async def pp_handle_funding(ctx: PpContext, rate: FundingRate) -> None:
             await _try_open(ctx, base)
 
 
+_UNWIND_ALERT_EVERY_NS = 15 * 60 * NS_PER_SECOND  # re-alert every 15 min
+
+
+async def _note_unwind_deferred(
+    ctx: "PpContext", pos: "PpPosition", pair_key: str, now_ns: int, why: str
+) -> None:
+    """Track a deferred unwind; alert the first time and then periodically
+    (a pair stuck open must stay visible)."""
+    if pos.unwind_deferred_ns == 0:
+        pos.unwind_deferred_ns = now_ns
+    if now_ns - pos.unwind_alerted_ns >= _UNWIND_ALERT_EVERY_NS:
+        pos.unwind_alerted_ns = now_ns
+        stuck_min = (now_ns - pos.unwind_deferred_ns) // (60 * NS_PER_SECOND)
+        await ctx.notifier.send(
+            f"PP UNWIND DEFERRED {pair_key} ({why}, {stuck_min} min atascado)"
+        )
+
+
 async def pp_manage(ctx: PpContext) -> None:
     """Guardrails + unwinds for open pairs (call every main-loop cycle)."""
     now_ns = time.monotonic_ns()
@@ -613,6 +636,7 @@ async def pp_manage(ctx: PpContext) -> None:
         if (now_b_ns - ctx.books[pos.long_key].local_ts_ns > max_age_ns
                 or now_b_ns - ctx.books[pos.short_key].local_ts_ns > max_age_ns):
             logger.warning("pp unwind deferred (stale books) %s", pair_key)
+            await _note_unwind_deferred(ctx, pos, pair_key, now_ns, "libros stale")
             continue
         def fetch(lk=pos.long_key, sk=pos.short_key):
             return ctx.books[lk], ctx.books[sk]
@@ -623,6 +647,7 @@ async def pp_manage(ctx: PpContext) -> None:
         except InsufficientDepth as exc:
             # transient: keep the pair open and retry next cycle
             logger.warning("pp unwind deferred (depth) %s: %s", pair_key, exc)
+            await _note_unwind_deferred(ctx, pos, pair_key, now_ns, "profundidad")
             continue
         except (KeyError, AssertionError) as exc:
             ctx.breaker.record_failure()

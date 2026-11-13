@@ -466,3 +466,75 @@ def test_detect_perp_perp_rejects_bad_interval_and_empty_history():
         long_interval_h=D("1"), short_interval_h=D("8"),
         long_history=[], short_history=[], min_history_samples=0, **kw,
     ) is None
+
+
+@pytest.mark.asyncio
+async def test_pp_unwind_deferred_alerts_periodically():
+    """caos menor: a stuck unwind alerts first time and re-alerts later."""
+    import time
+    from decimal import Decimal
+    from types import SimpleNamespace
+
+    from app.engines.perp_perp import (
+        PerpPerpOpportunity, PpContext, PpPosition, pp_manage,
+    )
+
+    sent = []
+
+    class _Notifier:
+        async def send(self, text):
+            sent.append(text)
+
+    class _Paper:
+        async def close_pair(self, *a, **k):
+            from app.engines.liquidity import InsufficientDepth
+            raise InsufficientDepth("no depth")
+
+    class _Breaker:
+        halted = False
+
+        def record_exit(self):
+            pass
+
+        def record_failure(self):
+            pass
+
+    class _Settings:
+        max_book_age_ms = 2000
+
+        def funding_interval_h_for(self, ex):
+            return Decimal("8")
+
+    now = time.monotonic_ns()
+    from app.connectors.normalizer import L2OrderBook, OrderBookLevel
+    book = L2OrderBook(
+        exchange="t", symbol="X/USD",
+        bids=(OrderBookLevel(price="100", qty="10"),),
+        asks=(OrderBookLevel(price="101", qty="10"),),
+        local_ts_ns=now,
+    )
+    pos = PpPosition(
+        fill=None, opp=PerpPerpOpportunity(
+            base="BTC", long_exchange="krakenfutures", long_symbol="L",
+            short_exchange="okx", short_symbol="S", notional=Decimal("100"),
+            net_rate_per_hour=Decimal("0.001"), holding_hours=1,
+            breakeven_hours=1, projected_net=Decimal("1"),
+        ),
+        long_key="krakenfutures:L", short_key="okx:S",
+        funding_collected_net=Decimal("0"), opened_ns=now - 7200 * 10**9,
+        last_accrual_ns_long=now, last_accrual_ns_short=now,
+    )
+    ctx = PpContext(
+        settings=_Settings(), paper=_Paper(), repo=None, ticks=None,
+        books={"krakenfutures:L": book, "okx:S": book}, funding={},
+        breaker=_Breaker(), notifier=_Notifier(),
+        open={"okx:S|krakenfutures:L": pos},
+        budget_remaining=lambda: Decimal("0"), realized_pnl=[Decimal("0")],
+    )
+    await pp_manage(ctx)  # holding window expired -> unwind deferred (depth)
+    assert len(sent) == 1 and "DEFERRED" in sent[0]
+    await pp_manage(ctx)  # within 15 min: no re-alert
+    assert len(sent) == 1
+    pos.unwind_alerted_ns -= 16 * 60 * 10**9  # simulate 16 min later
+    await pp_manage(ctx)
+    assert len(sent) == 2
