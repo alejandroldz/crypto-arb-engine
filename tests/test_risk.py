@@ -96,6 +96,21 @@ def test_uta_margin_locked_scales_with_leverage():
 
 def test_short_leverage_config_bounds():
     from app.core.config import Settings
-    Settings(short_leverage=3, max_leverage=10)  # ok
+    st = Settings(short_leverage_map="krakenfutures:5,okx:1")
+    assert st.short_leverage_for("krakenfutures") == D("5")
+    assert st.short_leverage_for("okx") == D("1")
+    assert st.short_leverage_for("bybit") == D("1")  # default
     with pytest.raises(Exception):
-        Settings(short_leverage=5, max_leverage=2)
+        Settings(short_leverage_map="okx:20")  # beyond EU cap
+    with pytest.raises(Exception):
+        Settings(short_leverage_map="okx:0.5")  # below 1x
+
+
+def test_survival_rule_rejects_unsafe_levels():
+    from app.core.config import Settings
+    st = Settings()
+    # krakenfutures unified: configured 5x must pass the +80% account rule
+    assert st.short_leverage_for("krakenfutures") == D("5")
+    # okx treated as isolated: only 1x survives +80%
+    assert isolated_max_pump_pct(st.short_leverage_for("okx")) >= D("0.80")
+    assert isolated_max_pump_pct(D("3")) < D("0.80")

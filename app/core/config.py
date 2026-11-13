@@ -51,11 +51,15 @@ class Settings(BaseSettings):
     max_leg_delay_ms: int = 1500
     dry_run_latency_ms: int = 150
 
-    # perp risk (RISK 5)
-    max_leverage: Decimal = Decimal("2")
-    # leverage of the paper perp short leg (1 = fully margined). EU MiFID
-    # venues cap retail crypto perps at 10x; see scripts/leverage_compare.py
-    short_leverage: Decimal = Decimal("1")
+    # perp risk (RISK 5). max_leverage is the hard EU MiFID retail cap.
+    max_leverage: Decimal = Decimal("10")
+    # leverage of the paper perp short leg PER VENUE (1 = fully margined).
+    # krakenfutures: multi-collateral UTA (BTC backs the short) -> 5x passes
+    # the +80% pump rule with a 3x safety margin. okx: single-currency
+    # margin (USD-only collateral) -> treated as isolated, only 1x passes.
+    # See scripts/leverage_compare.py.
+    short_leverage_map: str = "krakenfutures:5,okx:1"
+    default_short_leverage: Decimal = Decimal("1")
     liquidation_buffer_pct: Decimal = Decimal("15")
 
     # circuit breaker (RISK 6)
@@ -103,7 +107,7 @@ class Settings(BaseSettings):
         "liquidity_haircut",
         "default_taker_fee_bps",
         "max_leverage",
-        "short_leverage",
+        "default_short_leverage",
         "liquidation_buffer_pct",
         "max_daily_loss_usd",
         "paper_start_balance_usd",
@@ -127,12 +131,29 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _short_leverage_within_cap(self) -> "Settings":
-        if not (Decimal("1") <= self.short_leverage <= self.max_leverage):
-            raise ValueError(
-                f"short_leverage {self.short_leverage} outside "
-                f"[1, max_leverage={self.max_leverage}]"
-            )
+        for venue, lev in self.short_leverage_map_parsed.items():
+            if not (Decimal("1") <= lev <= self.max_leverage):
+                raise ValueError(
+                    f"short leverage for {venue} ({lev}) outside "
+                    f"[1, max_leverage={self.max_leverage}]"
+                )
+        if not (Decimal("1") <= self.default_short_leverage <= self.max_leverage):
+            raise ValueError("default_short_leverage outside [1, max_leverage]")
         return self
+
+    @property
+    def short_leverage_map_parsed(self) -> dict[str, Decimal]:
+        out: dict[str, Decimal] = {}
+        for pair in self.short_leverage_map.split(","):
+            if ":" in pair:
+                ex, lev = pair.split(":", 1)
+                out[ex.strip()] = D(lev.strip())
+        return out
+
+    def short_leverage_for(self, exchange: str) -> Decimal:
+        return self.short_leverage_map_parsed.get(
+            exchange, self.default_short_leverage
+        )
 
     @field_validator("liquidity_haircut")
     @classmethod

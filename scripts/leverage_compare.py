@@ -1,16 +1,18 @@
-"""Offline leverage comparison for the funding carry (no engine needed).
+"""Offline per-venue leverage comparison for the funding carry.
 
-Reads the latest funding snapshot per venue from funding_log.csv and prints
-what each short-leg leverage would change:
+Reads the latest funding snapshot per venue from funding_log.csv and shows,
+per venue and leverage level:
 
 - capital efficiency L/(L+1): funding captured per unit of committed
   capital (spot cash 1 + short margin 1/L)
-- funding APR on committed capital, per venue
-- pump survival: isolated margin liquidates at ~+1/L (optimistic); the
-  UNIFIED account-level max safe pump is leverage-independent at fixed
-  notional (cross collateral absorbs the move), so one row serves all L
-- whether the level passes the validator's +80% pump-survival rule in each
-  margin mode
+- funding APR on committed capital (latest soak snapshot)
+- pump survival vs the validator's +80% rule:
+  * UNIFIED multi-collateral (krakenfutures): account-level. Deploying
+    90% of equity as N = u*E*L/(L+1) notional (spot cash + short margin),
+    so effective utilization u_eff = 0.9*L/(L+1) and the account-level
+    max safe pump from UtaAccountState applies.
+  * single-currency / USD-only collateral (okx): treated as isolated -
+    the short liquidates at ~+1/L (optimistic; MMR makes it earlier).
 
 Run:  uv run python scripts/leverage_compare.py
 """
@@ -31,9 +33,9 @@ from app.engines.risk import (
 LEVELS = [Decimal("1"), Decimal("2"), Decimal("3"), Decimal("5"), Decimal("10")]
 EU_CAP = Decimal("10")
 MIN_SAFE_PUMP = Decimal("0.80")  # validator rule (spec 2.2.3)
-
-
-ACTIVE_VENUES = {"kraken", "krakenfutures", "okx"}
+ACTIVE_VENUES = {"krakenfutures", "okx"}
+# venues whose real account is unified multi-collateral (BTC backs the short)
+UNIFIED_VENUES = {"krakenfutures"}
 
 
 def latest_rates(csv_path: Path) -> dict[str, Decimal]:
@@ -52,56 +54,58 @@ def latest_rates(csv_path: Path) -> dict[str, Decimal]:
     return {ex: rate for ex, (_, rate) in latest.items()}
 
 
+def unified_max_pump(settings: Settings, lev: Decimal) -> Decimal | None:
+    """Account-level max safe pump at the utilization the leverage enables."""
+    u_eff = D(settings.uta_capital_utilization_pct) * lev / (lev + 1)
+    uta = UtaAccountState(
+        equity=D(settings.paper_start_balance_usd),
+        utilization=u_eff,
+        collateral_ratio=D("0.95"),
+        sim_mmr_rate=D(settings.sim_maintenance_margin_rate),
+        leverage=lev,
+    )
+    return uta.max_safe_pump_pct(D(settings.max_account_mmr_emergency_unwind))
+
+
 def main() -> None:
     settings = Settings()
     rates = latest_rates(Path("funding_log.csv"))
-    uta = UtaAccountState(
-        equity=D(settings.paper_start_balance_usd),
-        utilization=D(settings.uta_capital_utilization_pct),
-        collateral_ratio=D("0.95"),
-        sim_mmr_rate=D(settings.sim_maintenance_margin_rate),
-    )
-    unified_pump = uta.max_safe_pump_pct(D(settings.max_account_mmr_emergency_unwind))
-    unified_txt = "infinito" if unified_pump is None else f"+{unified_pump * 100:.0f}%"
+    chosen = settings.short_leverage_map_parsed
 
-    print(f"Modo UNIFIED (u={settings.uta_capital_utilization_pct}, "
-          f"haircut 0.95, mmr emergencia {settings.max_account_mmr_emergency_unwind}):")
-    print(f"  max safe pump a nivel cuenta: {unified_txt} "
-          f"(independiente del apalancamiento a nocional fijo)")
-    print(f"  regla del validador: rechazar si max safe pump < +80%\n")
-
-    header = (
-        f"{'lev':>4} | {'efic. capital':>13} | {'pump aislado':>12} | "
-        f"{'pasa +80% UNIFIED':>17} | {'pasa +80% ISOLATED':>18}"
-    )
-    print(header)
-    print("-" * len(header))
-    for lev in LEVELS:
-        eff = capital_efficiency(lev)
-        iso = isolated_max_pump_pct(lev)
-        iso_ok = "si" if iso >= MIN_SAFE_PUMP else "no"
-        uni_ok = (
-            "si"
-            if unified_pump is None or unified_pump >= MIN_SAFE_PUMP
-            else "no"
+    for venue in sorted(ACTIVE_VENUES):
+        mode = "UNIFIED multi-collateral" if venue in UNIFIED_VENUES else (
+            "single-currency (USD-only, como isolated)"
         )
-        legal = "" if lev <= EU_CAP else " (ILEGAL EU)"
-        print(
-            f"{str(lev) + 'x':>4} | {eff * 100:12.1f}% | {iso * 100:11.0f}% | "
-            f"{uni_ok:>17} | {iso_ok:>18}{legal}"
+        print(f"\n=== {venue} - modo real: {mode} ===")
+        print(f"apalancamiento configurado: {chosen.get(venue, settings.default_short_leverage)}x")
+        header = (
+            f"{'lev':>4} | {'efic. capital':>13} | {'max safe pump':>13} | "
+            f"{'pasa regla +80%':>15}"
         )
-
-    if rates:
-        print("\nFunding APR anualizado sobre capital comprometido "
-              "(ultimo snapshot del soak):")
-        for ex, rate in sorted(rates.items()):
+        print(header)
+        print("-" * len(header))
+        for lev in LEVELS:
+            eff = capital_efficiency(lev)
+            if venue in UNIFIED_VENUES:
+                pump = unified_max_pump(settings, lev)
+                pump_txt = "inf" if pump is None else f"+{pump * 100:.0f}%"
+                ok = pump is None or pump >= MIN_SAFE_PUMP
+            else:
+                pump = isolated_max_pump_pct(lev)
+                pump_txt = f"+{pump * 100:.0f}%"
+                ok = pump >= MIN_SAFE_PUMP
+            legal = "" if lev <= EU_CAP else " ILEGAL EU"
+            print(
+                f"{str(lev) + 'x':>4} | {eff * 100:12.1f}% | {pump_txt:>13} | "
+                f"{'si' if ok else 'NO':>15}{legal}"
+            )
+        rate = rates.get(venue)
+        if rate is not None:
             apr = rate * 3 * 365
-            row = f"  {ex:<15} funding {apr * 100:+.2f}% ->"
+            row = f"  funding bruto {apr * 100:+.2f}% -> APR/capital:"
             for lev in LEVELS:
                 row += f" {lev}x: {apr * capital_efficiency(lev) * 100:+.2f}%"
             print(row)
-    else:
-        print("\n(sin funding_log.csv: tasas no disponibles)")
 
 
 if __name__ == "__main__":
