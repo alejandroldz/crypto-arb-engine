@@ -269,12 +269,15 @@ class PerpPerpTrader:
         assert sell.vwap is not None and cover.vwap is not None
         long_fee = bps_of(sell.filled_quote, self.taker_fee_bps)
         short_fee = bps_of(cover.filled_quote, self.taker_fee_bps)
+        # fix: subtract the entry fees actually recorded in the ledger
+        entry_fees = await self.repo.entry_fees(fill.position_id)
         pnl = (
             D(funding_collected_net)
             + (sell.filled_quote - mul(fill.qty_base, fill.long_vwap))
             + (mul(fill.qty_base, fill.short_vwap) - cover.filled_quote)
             - long_fee
             - short_fee
+            - entry_fees
         )
         now = datetime.now(timezone.utc)
         for leg, exchange, side, vwap, fee in (

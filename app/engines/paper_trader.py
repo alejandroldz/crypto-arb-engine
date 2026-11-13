@@ -228,6 +228,9 @@ class PaperTrader:
         perp_entry_proceeds = mul(fill.qty_base, fill.perp_vwap)
         spot_fee = self._fee("spot", spot_proceeds)
         perp_fee = self._fee("perp", perp_close_cost)
+        # fix: realized PnL must include the entry fees actually paid,
+        # recovered from the orders ledger (not recomputed at current tiers)
+        entry_fees = await self.repo.entry_fees(fill.position_id)
 
         pnl = (
             D(funding_collected)
@@ -235,6 +238,7 @@ class PaperTrader:
             + (perp_entry_proceeds - perp_close_cost)
             - spot_fee
             - perp_fee
+            - entry_fees
         )
         now = datetime.now(timezone.utc)
         for leg, exchange, side, vwap, fee in (

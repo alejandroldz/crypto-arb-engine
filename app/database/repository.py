@@ -63,6 +63,19 @@ class Repository:
             pos.funding_collected = D(pos.funding_collected) + D(amount)
             await s.commit()
 
+    async def entry_fees(self, position_id: int) -> Decimal:
+        """Sum of fees actually recorded at entry (ledger is the truth)."""
+        async with self._session() as s:
+            rows = (
+                await s.execute(
+                    select(OrderRecord).where(
+                        OrderRecord.position_id == position_id,
+                        OrderRecord.action == "open",
+                    )
+                )
+            ).scalars().all()
+        return sum((D(r.fee) for r in rows), D("0"))
+
     async def record_order(self, **fields) -> int:
         async with self._session() as s:
             rec = OrderRecord(

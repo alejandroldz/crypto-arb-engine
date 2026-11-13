@@ -72,3 +72,36 @@ async def test_pp_partial_close_aborts_and_keeps_position(tmp_path):
     assert len(await repo.open_positions()) == 1
     await t.close_pair(fill, D("0"), lambda: (lb, sb))
     assert await repo.open_positions() == []
+
+
+async def test_entry_fees_included_in_realized_pnl(tmp_path):
+    """Fix: flat prices + zero funding -> PnL == -(all four fees)."""
+    repo = Repository(f"sqlite+aiosqlite:///{tmp_path}/t.sqlite")
+    await repo.init()
+    t = PaperTrader(repo, latency_ms=0, spot_taker_fee_bps=D("80"),
+                    perp_taker_fee_bps=D("5"), execution_mode="taker")
+    spot = book("kraken", "BTC/USD", 99.9, 100.0)
+    perp = book("krakenfutures", "BTC/USD:USD", 100.1, 100.2)
+    fill = await t.open_carry(
+        FundingOpportunity(exchange="krakenfutures", symbol="BTC/USD:USD",
+                           notional=D("1000"), funding_rate=D("0.001"),
+                           holding_intervals=90, breakeven_intervals=10,
+                           projected_net=D("30")),
+        lambda: (spot, perp),
+    )
+    pnl = await t.close_carry(fill, D("0"), lambda: (spot, perp))
+    # entry: spot taker 80bps on ~1000 + perp taker 5bps on ~1000 = 8.5
+    # exit:  same = 8.5 -> total -17 (before the fix: -8.5)
+    q = fill.qty_base
+    expected = -(
+        D("0.008") * q * D("100.0") + D("0.0005") * q * D("100.1")
+        + D("0.008") * q * D("99.9") + D("0.0005") * q * D("100.2")
+    )
+    assert abs(pnl - expected) < D("0.01")
+    from sqlalchemy import select
+
+    from app.database.models import OrderRecord
+
+    async with repo._session() as s:
+        fees = sum(D(o.fee) for o in (await s.execute(select(OrderRecord))).scalars().all())
+    assert abs(-pnl - fees) < D("0.01")  # PnL reconciles with the ledger

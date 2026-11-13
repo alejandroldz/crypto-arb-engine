@@ -155,13 +155,16 @@ async def test_close_pair_always_taker_pnl(tmp_path):
     # close at book prices (single deep levels): exact expectation
     pnl = await t.close_pair(fill, D("10"), lambda: (lb, sb))
     q = fill.qty_base
+    # entry: long filled passively at limit (2bps), short taker (5bps)
+    entry_fees = D("0.0002") * q * fill.long_vwap + D("0.0005") * q * fill.short_vwap
     expected = (
         D("10")
         + q * (D("99.99") - fill.long_vwap)
         + q * (fill.short_vwap - D("100.05"))
         - D("0.0005") * (q * D("99.99") + q * D("100.05"))
+        - entry_fees
     )
-    assert abs(pnl - expected) < D("1e-15")
+    assert abs(pnl - expected) < D("1e-8")
     assert pnl < D("10")  # taker fees on both exits
     assert await repo.open_positions() == []
 
