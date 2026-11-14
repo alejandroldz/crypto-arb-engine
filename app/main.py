@@ -779,6 +779,30 @@ async def run() -> None:
 
     tasks.append(asyncio.create_task(heartbeat_loop()))
 
+    async def task_supervisor() -> None:
+        """F51: feed_watchdog only supervises FEEDS. If any other main task
+        dies (screener, books consumer, fee refresh), gather keeps the
+        engine alive and nobody notices - silent loss of functionality.
+        Alert loudly; a dead task is not auto-restarted (its state may be
+        corrupt) - that is what the alert is for."""
+        watched = {t: t.get_name() for t in tasks}
+        alerted: set[int] = set()
+        while not stop.is_set():
+            await asyncio.sleep(30)
+            for t, name in watched.items():
+                if t.done() and id(t) not in alerted and not stop.is_set():
+                    alerted.add(id(t))
+                    exc = None if t.cancelled() else t.exception()
+                    logger.error("main task %s DIED: %s", name, exc)
+                    await notifier.send(
+                        f"MAIN TASK DIED {name}: {exc} - funcionalidad "
+                        "perdida hasta reinicio"
+                    )
+
+    for t in tasks:
+        t.set_name(t.get_coro().__qualname__)  # supervisable names
+    tasks.append(asyncio.create_task(task_supervisor()))
+
     async def close_carry(key: str, carry: OpenCarry, reason: str) -> None:
         nonlocal realized_pnl
 
