@@ -454,7 +454,15 @@ async def run() -> None:
     last_book_record: dict[str, float] = {}
 
     # --- restart recovery: rebuild open carries from SQLite ---
-    for pos in await repo.open_positions():
+    recovered_open, poisoned_open = await repo.open_positions_with_poisoned()
+    if poisoned_open:  # F48: one corrupt row must never halt the engine
+        ids = ", ".join(str(p.id) for p in poisoned_open)
+        logger.error("recovery SKIP poisoned open positions: %s", ids)
+        await notifier.send(
+            f"RECOVERY SKIP: {len(poisoned_open)} posiciones open CORRUPTAS "
+            f"(NaN/Infinity) en SQLite (ids {ids}) - revisión manual"
+        )
+    for pos in recovered_open:
         if pos.exchange_spot.endswith("(long)"):
             continue  # perp-perp row: recovered into pp_ctx below
         # op.#2 recovery validation: a crash mid-entry (pre-atomic writes)

@@ -26,6 +26,28 @@ def _finite(value, name: str) -> Decimal:
     return d
 
 
+# fuzz F48: writes are guarded (F11/F12) but a directly-doctored row could
+# still hold 'NaN'/'Infinity'. Read paths must partition poison out instead
+# of feeding it to the breaker (a NaN there fired record_failure every
+# manage cycle until a GLOBAL halt, and recovery reloaded it every boot).
+_OPEN_NUMERIC_FIELDS = (
+    "qty_base", "notional", "spot_entry_vwap", "perp_entry_vwap",
+    "funding_collected", "entry_funding_rate",
+)
+
+
+def poisoned_numeric_fields(pos: Position) -> list[str]:
+    """Non-finite numeric fields on a position row ([] = clean)."""
+    bad = []
+    for f in _OPEN_NUMERIC_FIELDS:
+        try:
+            if not D(getattr(pos, f)).is_finite():
+                bad.append(f)
+        except (ValueError, ArithmeticError):
+            bad.append(f)
+    return bad
+
+
 class Repository:
     def __init__(self, sqlite_url: str):
         self._engine = create_async_engine(sqlite_url)
@@ -75,7 +97,10 @@ class Repository:
             if pos is None:
                 raise KeyError(f"position {position_id} not found")
             amount = _finite(amount, "funding amount")
-            pos.funding_collected = D(pos.funding_collected) + amount
+            # F48: validate the SUM, not only the increment - otherwise a
+            # poisoned funding_collected is re-written to disk forever
+            pos.funding_collected = _finite(
+                D(pos.funding_collected) + amount, "funding_collected")
             await s.commit()
 
     async def entry_fees(self, position_id: int) -> Decimal:
@@ -269,10 +294,33 @@ class Repository:
                 )
         return total
 
-    async def open_positions(self) -> list[Position]:
+    async def open_positions_with_poisoned(
+        self,
+    ) -> tuple[list[Position], list[Position]]:
+        """(clean open rows, poisoned open rows). F48: a NaN/Infinity row
+        used to be returned raw, crash the manage loop every cycle and
+        re-halt the engine on every boot."""
         async with self._session() as s:
-            result = await s.execute(select(Position).where(Position.status == "open"))
-            return list(result.scalars())
+            result = await s.execute(
+                select(Position).where(Position.status == "open"))
+            rows = list(result.scalars())
+            s.expunge_all()
+        clean, poisoned = [], []
+        for row in rows:
+            bad = poisoned_numeric_fields(row)
+            if bad:
+                logger.error(
+                    "open position %s (%s) SKIPPED: non-finite %s",
+                    row.id, row.symbol, ",".join(bad),
+                )
+                poisoned.append(row)
+            else:
+                clean.append(row)
+        return clean, poisoned
+
+    async def open_positions(self) -> list[Position]:
+        clean, _ = await self.open_positions_with_poisoned()
+        return clean
 
     async def export_tax_csv(self, path: str | Path, kind: str = "live") -> int:
         """AEAT-ready CSV export. Only real trades: paper rows are excluded

@@ -1,5 +1,6 @@
 """op.#2: entry/exit writes are atomic; recovery validates recorded legs."""
 import time
+from decimal import Decimal
 from datetime import datetime, timezone
 
 import pytest
@@ -79,3 +80,66 @@ async def test_entry_writes_position_two_orders_two_audits(tmp_path):
     await t.close_carry(fill, D("1"), lambda: (spot, perp))
     assert await repo.count_orders(fill.position_id, "close") == 2
     assert await repo.open_positions() == []
+
+
+@pytest.mark.asyncio
+async def test_f48_poisoned_open_row_is_partitioned_out(tmp_path):
+    """F48: a doctored 'NaN' row must be skipped noisily, never fed to the
+    manage loop / breaker, and never reloaded as a normal carry."""
+    from sqlalchemy import text
+
+    repo = Repository(f"sqlite+aiosqlite:///{tmp_path}/s.db")
+    await repo.init()
+    good = await repo.open_position(
+        qty_base=Decimal("0.001"), notional=Decimal("50"),
+        spot_entry_vwap=Decimal("50000"), perp_entry_vwap=Decimal("50000"),
+        symbol="BTC/USD:USD", exchange_spot="kraken",
+        exchange_perp="krakenfutures",
+    )
+    bad = await repo.open_position(
+        qty_base=Decimal("0.002"), notional=Decimal("100"),
+        spot_entry_vwap=Decimal("50000"), perp_entry_vwap=Decimal("50000"),
+        symbol="ETH/USD:USD", exchange_spot="kraken",
+        exchange_perp="krakenfutures",
+    )
+    # direct DB surgery: the only way poison gets in (writes are guarded)
+    async with repo._engine.begin() as conn:
+        await conn.execute(
+            text("UPDATE positions SET perp_entry_vwap='NaN' WHERE id=:i"),
+            {"i": bad},
+        )
+    clean, poisoned = await repo.open_positions_with_poisoned()
+    assert [p.id for p in clean] == [good]
+    assert [p.id for p in poisoned] == [bad]
+    assert [p.id for p in await repo.open_positions()] == [good]
+    await repo.close()
+
+
+@pytest.mark.asyncio
+async def test_f48_add_funding_refuses_to_rewrite_poison(tmp_path):
+    """The increment was validated but the SUM was not: a poisoned
+    funding_collected used to be re-persisted on every accrual."""
+    from sqlalchemy import text
+
+    repo = Repository(f"sqlite+aiosqlite:///{tmp_path}/s.db")
+    await repo.init()
+    pid = await repo.open_position(
+        qty_base=Decimal("0.001"), notional=Decimal("50"),
+        spot_entry_vwap=Decimal("50000"), perp_entry_vwap=Decimal("50000"),
+        symbol="BTC/USD:USD", exchange_spot="kraken",
+        exchange_perp="krakenfutures",
+    )
+    async with repo._engine.begin() as conn:
+        await conn.execute(
+            text("UPDATE positions SET funding_collected='Infinity' WHERE id=:i"),
+            {"i": pid},
+        )
+    with pytest.raises(ValueError):
+        await repo.add_funding(pid, Decimal("0.01"))
+    # poison NOT rewritten/added to: still exactly 'Infinity'
+    async with repo._engine.connect() as conn:
+        (v,) = (await conn.execute(
+            text("SELECT funding_collected FROM positions WHERE id=:i"),
+            {"i": pid})).one()
+    assert v == "Infinity"
+    await repo.close()
