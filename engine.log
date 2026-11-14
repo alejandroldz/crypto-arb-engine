@@ -1,39 +1,3 @@
-2026-11-13 23:01:21,397 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:21,397 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:21,411 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:21,411 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:21,424 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:21,424 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:21,433 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:21,433 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:21,443 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:21,443 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:21,453 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:21,453 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:21,508 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:21,508 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:21,533 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:21,533 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:21,549 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:21,549 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:21,558 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:21,558 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:21,573 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:21,573 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:21,595 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:21,595 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:21,609 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:21,609 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:21,619 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:21,619 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:21,628 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:21,628 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:21,638 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:21,638 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:21,648 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:21,648 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:21,662 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:21,662 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
 2026-11-13 23:01:21,676 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
 2026-11-13 23:01:21,676 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
 2026-11-13 23:01:21,690 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
@@ -1998,3 +1962,39 @@
 2026-11-14 04:57:05,810 main INFO real account health okx: equity 0 mmr 0
 2026-11-14 04:57:15,570 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007091634104952674 vs polled mean -0.000002738919877784565957446808511 - entries quarantined
 2026-11-14 04:57:15,570 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007091634104952674 vs polled mean -0.000002738919877784565957446808511 - entries quarantined
+2026-11-14 04:57:46,523 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007091634104952674 vs polled mean -0.000002768008166441652542372881356 - entries quarantined
+2026-11-14 04:57:46,523 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007091634104952674 vs polled mean -0.000002768008166441652542372881356 - entries quarantined
+2026-11-14 05:40:19,696 ingestion WARNING book feed krakenfutures BTC/USD:USD: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-14 05:40:19,696 ingestion WARNING book feed krakenfutures BTC/USD:USD: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-14 05:40:19,698 ingestion WARNING book feed krakenfutures ETH/USD:USD: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-14 05:40:19,698 ingestion WARNING book feed krakenfutures ETH/USD:USD: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-14 05:40:19,698 ingestion WARNING book feed kraken ETH/USD: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-14 05:40:19,698 ingestion WARNING book feed kraken ETH/USD: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-14 05:40:21,012 ingestion WARNING book feed kraken SOL/USD: RequestTimeout: Connection to wss://ws.kraken.com/v2 timed out due to a ping-pong keepalive missing on time
+2026-11-14 05:40:21,012 ingestion WARNING book feed kraken SOL/USD: RequestTimeout: Connection to wss://ws.kraken.com/v2 timed out due to a ping-pong keepalive missing on time
+2026-11-14 05:40:23,380 ingestion WARNING book feed okx BTC/USD:USD-310404: RequestTimeout: Connection to wss://ws.okx.com:443/ws/v5/public timed out due to a ping-pong keepalive missing on time
+2026-11-14 05:40:23,380 ingestion WARNING book feed okx BTC/USD:USD-310404: RequestTimeout: Connection to wss://ws.okx.com:443/ws/v5/public timed out due to a ping-pong keepalive missing on time
+2026-11-14 05:40:23,639 ingestion WARNING book feed okx SOL/USD:USD-310404: RequestTimeout: Connection to wss://ws.okx.com:443/ws/v5/public timed out due to a ping-pong keepalive missing on time
+2026-11-14 05:40:23,639 ingestion WARNING book feed okx SOL/USD:USD-310404: RequestTimeout: Connection to wss://ws.okx.com:443/ws/v5/public timed out due to a ping-pong keepalive missing on time
+2026-11-14 05:40:23,855 ingestion WARNING book feed kraken BTC/USD: RequestTimeout: Connection to wss://ws.kraken.com/v2 timed out due to a ping-pong keepalive missing on time
+2026-11-14 05:40:23,855 ingestion WARNING book feed kraken BTC/USD: RequestTimeout: Connection to wss://ws.kraken.com/v2 timed out due to a ping-pong keepalive missing on time
+2026-11-14 05:40:31,047 ingestion WARNING book feed okx ETH/USD:USD-310404: RequestTimeout: Connection to wss://ws.okx.com:443/ws/v5/public timed out due to a ping-pong keepalive missing on time
+2026-11-14 05:40:31,047 ingestion WARNING book feed okx ETH/USD:USD-310404: RequestTimeout: Connection to wss://ws.okx.com:443/ws/v5/public timed out due to a ping-pong keepalive missing on time
+2026-11-14 05:40:35,433 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-14 05:40:35,433 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-14 05:40:36,021 main INFO real account health okx: equity 0 mmr 0
+2026-11-14 05:40:36,021 main INFO real account health okx: equity 0 mmr 0
+2026-11-14 05:40:48,231 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007091634104952674 vs polled mean -0.000002760889965064628691983122363 - entries quarantined
+2026-11-14 05:40:48,231 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007091634104952674 vs polled mean -0.000002760889965064628691983122363 - entries quarantined
+2026-11-14 05:41:18,811 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007091634104952674 vs polled mean -0.000002753830971076747899159663866 - entries quarantined
+2026-11-14 05:41:18,811 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007091634104952674 vs polled mean -0.000002753830971076747899159663866 - entries quarantined
+2026-11-14 05:41:35,683 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-14 05:41:35,683 main INFO real account health krakenfutures: equity 0 mmr 0
+2026-11-14 05:41:36,330 main INFO real account health okx: equity 0 mmr 0
+2026-11-14 05:41:36,330 main INFO real account health okx: equity 0 mmr 0
+2026-11-14 05:41:49,666 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007091634104952674 vs polled mean -0.000002746823561258205020920502092 - entries quarantined
+2026-11-14 05:41:49,666 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007091634104952674 vs polled mean -0.000002746823561258205020920502092 - entries quarantined
+2026-11-14 05:58:12,892 ingestion WARNING book feed okx ETH/USD:USD-310404: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-14 05:58:12,892 ingestion WARNING book feed okx ETH/USD:USD-310404: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-14 05:58:12,892 ingestion WARNING book feed krakenfutures BTC/USD:USD: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-14 05:58:12,892 ingestion WARNING book feed krakenfutures BTC/USD:USD: NetworkError: Connection closed by remote server, closing code 1006
