@@ -26,7 +26,17 @@ class DecimalString(TypeDecorator):
         return None if value is None else str(value)
 
     def process_result_value(self, value, dialect):
-        return None if value is None else Decimal(str(value))
+        if value is None:
+            return None
+        # fuzz F52: unparseable text ('abc', '1,5') used to raise
+        # InvalidOperation HERE, one layer BELOW every read guard (F30/F48)
+        # - a single doctored row locked the engine out of every boot.
+        # Return the raw string instead: D() raises a ValueError that the
+        # guards DO catch, so the row lands in the poisoned partition.
+        try:
+            return Decimal(str(value))
+        except ArithmeticError:
+            return str(value)
 
 
 class Base(DeclarativeBase):

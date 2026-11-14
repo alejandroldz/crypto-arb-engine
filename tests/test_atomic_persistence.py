@@ -201,3 +201,54 @@ async def test_tax_export_skips_poisoned_rows(tmp_path):
     text_out = out.read_text()
     assert "NaN" not in text_out
     await repo.close()
+
+
+@pytest.mark.asyncio
+async def test_f52_unparseable_decimal_text_lands_in_poison_partition(tmp_path):
+    """F52: qty_base='abc' used to raise InvalidOperation INSIDE the ORM
+    read, below every guard - boot lockout on every restart. Now the raw
+    string flows to D() and the row is partitioned as poisoned."""
+    from sqlalchemy import text
+
+    repo = Repository(f"sqlite+aiosqlite:///{tmp_path}/s.db")
+    await repo.init()
+    pid = await repo.open_position(
+        qty_base=Decimal("0.001"), notional=Decimal("50"),
+        spot_entry_vwap=Decimal("50000"), perp_entry_vwap=Decimal("50000"),
+        symbol="BTC/USD:USD", exchange_spot="kraken",
+        exchange_perp="krakenfutures",
+    )
+    async with repo._engine.begin() as conn:
+        await conn.execute(
+            text("UPDATE positions SET qty_base='abc' WHERE id=:i"),
+            {"i": pid},
+        )
+    clean, poisoned = await repo.open_positions_with_poisoned()  # no raise
+    assert clean == [] and [p.id for p in poisoned] == [pid]
+    await repo.close()
+
+
+@pytest.mark.asyncio
+async def test_f52_unparseable_pnl_ignored_by_seed(tmp_path):
+    """realized_pnl_usd='xyz' used to kill seed_daily_pnl at boot."""
+    from sqlalchemy import text
+
+    repo = Repository(f"sqlite+aiosqlite:///{tmp_path}/s.db")
+    await repo.init()
+    pid = await repo.open_position(
+        qty_base=Decimal("0.001"), notional=Decimal("50"),
+        spot_entry_vwap=Decimal("50000"), perp_entry_vwap=Decimal("50000"),
+        symbol="BTC/USD:USD", exchange_spot="kraken",
+        exchange_perp="krakenfutures",
+    )
+    await repo.close_position(pid, Decimal("1.5"),
+                              datetime.now(timezone.utc))
+    async with repo._engine.begin() as conn:
+        await conn.execute(
+            text("UPDATE positions SET realized_pnl_usd='xyz' WHERE id=:i"),
+            {"i": pid},
+        )
+    total = await repo.realized_pnl_since(datetime(2000, 1, 1,
+                                                   tzinfo=timezone.utc))
+    assert total == D("0")  # poison ignored, no raise
+    await repo.close()

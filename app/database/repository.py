@@ -292,8 +292,11 @@ class Repository:
         # (seed_daily_pnl) or poison the daily limit - skip it loudly.
         total = D("0")
         for r in rows:
-            pnl = D(r.realized_pnl_usd)
-            if pnl.is_finite():
+            try:  # F52: 'xyz' raises in D(), below the is_finite check
+                pnl = D(r.realized_pnl_usd)
+            except (ValueError, ArithmeticError, TypeError):
+                pnl = None
+            if pnl is not None and pnl.is_finite():
                 total += pnl
             else:
                 logger.error(
