@@ -168,3 +168,36 @@ async def test_f49_poisoned_int_column_is_partitioned_out(tmp_path):
     clean, poisoned = await repo.open_positions_with_poisoned()
     assert clean == [] and [p.id for p in poisoned] == [pid]
     await repo.close()
+
+
+@pytest.mark.asyncio
+async def test_tax_export_skips_poisoned_rows(tmp_path):
+    """A NaN amount or NULL timestamp must never reach the AEAT CSV."""
+    from app.database.models import TaxAuditLog
+    from sqlalchemy import text
+
+    repo = Repository(f"sqlite+aiosqlite:///{tmp_path}/s.db")
+    await repo.init()
+    async with repo._session() as s:
+        s.add(TaxAuditLog(
+            trade_id=1, strategy_id="funding_carry", paired_hedge_id="p1",
+            kind="live", exchange="kraken", symbol="BTC/USD", side="buy",
+            amount=D("0.5"), price_usd_equivalent=D("50000"),
+            fee_amount=D("1"), fee_currency="USD",
+            timestamp_utc=datetime.now(timezone.utc),
+        ))
+        await s.commit()
+    async with repo._engine.begin() as conn:
+        await conn.execute(text(
+            "INSERT INTO tax_audit_log (trade_id, strategy_id,"
+            " paired_hedge_id, kind, exchange, symbol, side, amount,"
+            " price_usd_equivalent, fee_amount, fee_currency,"
+            " timestamp_utc, net_pnl_usd) VALUES (2,'funding_carry','p2',"
+            " 'live','kraken','BTC/USD','buy','NaN','1','0','USD',"
+            " '2026-01-01 00:00:00', NULL)"))
+    out = tmp_path / "tax.csv"
+    n = await repo.export_tax_csv(str(out), kind="live")
+    assert n == 1  # the poisoned row is skipped, not exported
+    text_out = out.read_text()
+    assert "NaN" not in text_out
+    await repo.close()

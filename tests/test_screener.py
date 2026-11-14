@@ -185,3 +185,16 @@ def test_f15_corrupt_state_discarded(tmp_path):
     assert set(state) == {"okx:BTC/USD:USD-310404", "krakenfutures:SOL/USD:USD"}
     # and a sweep over the loaded state never crashes
     assert h.update("okx:BTC/USD:USD-310404", False) in (True, False)
+
+
+def test_f51_load_state_survives_hostile_files(tmp_path):
+    """F51: invalid UTF-8 and deep-nesting RecursionError used to kill the
+    unsupervised screener_loop - silent loss of re-selection forever."""
+    bad = tmp_path / "s1.json"
+    bad.write_bytes(b'{"state": "\xff\xfe"}')
+    h = load_state(str(bad))  # no raise
+    assert h is not None
+    deep = tmp_path / "s2.json"
+    deep.write_text("[" * 100000 + "]" * 100000)
+    h = load_state(str(deep))  # RecursionError contained
+    assert h is not None

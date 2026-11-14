@@ -362,7 +362,21 @@ class Repository:
                     "net_pnl_usd",
                 ]
             )
+            skipped = 0
             for r in rows:
+                # F48 threat model: a poisoned row must never reach a fiscal
+                # report - skip non-finite amounts and NULL timestamps
+                # loudly instead of writing 'NaN' or crashing mid-export
+                if r.timestamp_utc is None:
+                    skipped += 1
+                    continue
+                try:
+                    if not D(r.amount).is_finite():
+                        skipped += 1
+                        continue
+                except (ValueError, ArithmeticError):
+                    skipped += 1
+                    continue
                 writer.writerow(
                     [
                         r.trade_id,
@@ -380,4 +394,6 @@ class Repository:
                     ]
                 )
         tmp.replace(path)
-        return len(rows)
+        if skipped:
+            logger.error("tax export: %d poisoned rows SKIPPED", skipped)
+        return len(rows) - skipped

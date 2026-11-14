@@ -209,7 +209,11 @@ def load_state(path: str) -> Hysteresis:
     if p.exists():
         try:
             raw = json.loads(p.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
+        except Exception:
+            # F51: UnicodeDecodeError (invalid bytes) and RecursionError
+            # (deep nesting) escaped the narrow catch and killed
+            # screener_loop - an UNSUPERVISED task, so the engine kept
+            # trading the initial eligible set forever with no alert
             logger.warning("screener state unreadable, starting fresh")
         else:
             return Hysteresis(_sanitize_state(raw))
