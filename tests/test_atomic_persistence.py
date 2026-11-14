@@ -143,3 +143,28 @@ async def test_f48_add_funding_refuses_to_rewrite_poison(tmp_path):
             {"i": pid})).one()
     assert v == "Infinity"
     await repo.close()
+
+
+@pytest.mark.asyncio
+async def test_f49_poisoned_int_column_is_partitioned_out(tmp_path):
+    """F49: SQLite does not enforce types - holding_intervals='NaN' returns
+    as str, passed the Decimal-only guard, then exploded pp_manage with a
+    MemoryError (str * NS_PER_HOUR)."""
+    from sqlalchemy import text
+
+    repo = Repository(f"sqlite+aiosqlite:///{tmp_path}/s.db")
+    await repo.init()
+    pid = await repo.open_position(
+        qty_base=Decimal("0.001"), notional=Decimal("50"),
+        spot_entry_vwap=Decimal("50000"), perp_entry_vwap=Decimal("50000"),
+        symbol="BTC/USD:USD", exchange_spot="kraken",
+        exchange_perp="krakenfutures",
+    )
+    async with repo._engine.begin() as conn:
+        await conn.execute(
+            text("UPDATE positions SET holding_intervals='NaN' WHERE id=:i"),
+            {"i": pid},
+        )
+    clean, poisoned = await repo.open_positions_with_poisoned()
+    assert clean == [] and [p.id for p in poisoned] == [pid]
+    await repo.close()

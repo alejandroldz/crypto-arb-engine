@@ -37,7 +37,12 @@ _OPEN_NUMERIC_FIELDS = (
 
 
 def poisoned_numeric_fields(pos: Position) -> list[str]:
-    """Non-finite numeric fields on a position row ([] = clean)."""
+    """Non-finite numeric fields on a position row ([] = clean).
+
+    F49: SQLite does not enforce column types - a doctored
+    holding_intervals='NaN' comes back as str, passes the Decimal checks
+    and later explodes in pp_manage (str * int -> MemoryError). Integer
+    columns get the same treatment: strict type + range."""
     bad = []
     for f in _OPEN_NUMERIC_FIELDS:
         try:
@@ -45,6 +50,9 @@ def poisoned_numeric_fields(pos: Position) -> list[str]:
                 bad.append(f)
         except (ValueError, ArithmeticError):
             bad.append(f)
+    hi = pos.holding_intervals
+    if isinstance(hi, bool) or not isinstance(hi, int) or hi < 0:
+        bad.append("holding_intervals")
     return bad
 
 
