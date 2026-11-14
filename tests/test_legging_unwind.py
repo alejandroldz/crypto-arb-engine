@@ -233,3 +233,38 @@ async def test_f17_leg1_reconcile_nan_flags_uncertain():
     )
     r = await coord.execute(LEG1, LEG2)
     assert r.state is LegState.UNWIND_UNCERTAIN
+
+
+@pytest.mark.asyncio
+async def test_f55_failed_reconcile_still_yields_unwind_uncertain():
+    """F55: order fails AND reconcile_fills raises -> the result must be
+    UNWIND_UNCERTAIN ('manual check required'), never a raw exception."""
+
+    async def boom_ioc(leg):
+        raise ConnectionError("venue down")
+
+    async def boom_reconcile(leg):
+        raise ConnectionError("reconcile down")
+
+    coord = make(boom_ioc, reconcile=boom_reconcile)
+    result = await coord.execute(LEG1, LEG2)  # no raise
+    assert result.state == LegState.UNWIND_UNCERTAIN
+    assert "manual check required" in result.note
+
+
+@pytest.mark.asyncio
+async def test_f55_reconcile_garbage_string_is_unknown():
+    async def ok_ioc(leg):
+        return leg.qty_base
+
+    async def garbage_reconcile(leg):
+        return "not-a-number"
+
+    coord = make(ok_ioc, reconcile=garbage_reconcile)
+
+    async def timeout_ioc(leg):
+        raise asyncio.TimeoutError()
+
+    coord2 = make(timeout_ioc, reconcile=garbage_reconcile)
+    result = await coord2.execute(LEG1, LEG2)  # no raise from D()
+    assert result.state == LegState.UNWIND_UNCERTAIN

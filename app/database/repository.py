@@ -122,7 +122,17 @@ class Repository:
                     )
                 )
             ).scalars().all()
-        return sum((D(r.fee) for r in rows), D("0"))
+        total = D("0")
+        for r in rows:  # fuzz residual: fee='abc' crashed the close path
+            try:
+                fee = D(r.fee)
+            except (ValueError, ArithmeticError, TypeError):
+                logger.error("entry_fees: unparseable fee on order %s ignored",
+                             r.id)
+                continue
+            if fee.is_finite():
+                total += fee
+        return total
 
     @staticmethod
     def _order_row(fields: dict) -> OrderRecord:

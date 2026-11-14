@@ -16,11 +16,14 @@ Rules:
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass, replace
 from decimal import Decimal
 from typing import Awaitable, Callable
 
 from app.core.decimals import D, ZERO
+
+logger = logging.getLogger(__name__)
 
 
 class LiveTradingDisabledError(RuntimeError):
@@ -99,10 +102,21 @@ class AtomicLegCoordinator:
         return d
 
     async def _actual_fills(self, leg: LegOrder) -> Decimal | None:
+        """Best-effort reconciliation. fuzz F55: if the order failed AND
+        reconciliation ALSO fails, the raw exception escaping here lost the
+        UNWIND_UNCERTAIN semantics - exactly when a human most needs the
+        'real exposure may exist' signal. ANY failure means 'unknown'."""
         if self.reconcile_fills is None:
             return None
-        actual = await self.reconcile_fills(leg)
-        return D(actual) if actual is not None else None
+        try:
+            actual = await self.reconcile_fills(leg)
+            return D(actual) if actual is not None else None
+        except Exception as exc:
+            logger.error(
+                "reconcile_fills failed for %s %s (%s) - outcome UNKNOWN",
+                leg.exchange, leg.symbol, type(exc).__name__,
+            )
+            return None
 
     async def _flatten(self, leg1: LegOrder, filled1: Decimal, leg2: LegOrder,
                        filled2: Decimal) -> ExecutionResult:

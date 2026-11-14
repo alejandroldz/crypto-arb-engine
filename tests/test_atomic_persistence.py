@@ -252,3 +252,31 @@ async def test_f52_unparseable_pnl_ignored_by_seed(tmp_path):
                                                    tzinfo=timezone.utc))
     assert total == D("0")  # poison ignored, no raise
     await repo.close()
+
+
+@pytest.mark.asyncio
+async def test_entry_fees_skips_unparseable_fee(tmp_path):
+    """Residual: fee='abc' used to crash the close path with ValueError."""
+    from sqlalchemy import text
+
+    repo = Repository(f"sqlite+aiosqlite:///{tmp_path}/s.db")
+    await repo.init()
+    pid = await repo.open_position(
+        qty_base=Decimal("0.001"), notional=Decimal("50"),
+        spot_entry_vwap=Decimal("50000"), perp_entry_vwap=Decimal("50000"),
+        symbol="BTC/USD:USD", exchange_spot="kraken",
+        exchange_perp="krakenfutures",
+    )
+    async with repo._engine.begin() as conn:
+        await conn.execute(text(
+            "INSERT INTO orders (position_id, leg, action, side,"
+            " qty_base, vwap, fee, fee_currency, kind, ts) VALUES (:p,"
+            " 'spot','open','buy', 0.001, 50000, 'abc','USD','paper',"
+            " '2026-01-01 00:00:00')"), {"p": pid})
+        await conn.execute(text(
+            "INSERT INTO orders (position_id, leg, action, side,"
+            " qty_base, vwap, fee, fee_currency, kind, ts) VALUES (:p,"
+            " 'perp','open','sell', 0.001, 50000, '0.5','USD','paper',"
+            " '2026-01-01 00:00:01')"), {"p": pid})
+    assert await repo.entry_fees(pid) == D("0.5")  # poison skipped
+    await repo.close()
