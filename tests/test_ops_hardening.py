@@ -240,3 +240,35 @@ def test_export_funding_csv_is_atomic_and_complete(tmp_path):
     assert not (tmp_path / "export.csv.tmp").exists()  # no leftover tmp
     text = out.read_text()
     assert "BTC/USD:USD" in text and "0.0005" in text
+
+
+def test_f50_corrupt_csv_does_not_kill_seed(tmp_path):
+    """F50: csv.Error (huge field) and invalid UTF-8 used to kill boot.
+    Seed keeps what it read, skips compaction (partial read must not drop
+    valid rows after the corruption) and never raises."""
+    import app.main as m
+
+    # (a) field larger than csv's 131072-byte limit
+    csv_path = tmp_path / "funding_log.csv"
+    csv_path.write_text(
+        "exchange,symbol,ts,rate,predicted\n"
+        "okx,BTC/USD:USD,2026-11-13T16:00:00+00:00,0.0005,\n"
+        'okx,ETH/USD:USD,2026-11-13T16:00:01+00:00,"' + "9" * 200000 + '",\n'
+    )
+    monkey = pytest.MonkeyPatch()
+    monkey.setattr(m, "FUNDING_LOG_CSV", str(csv_path))
+    store = TickStore(str(tmp_path / "t.duckdb"))
+    m.seed_funding_history(store)  # no raise
+    assert len(store.funding_history("okx", "BTC/USD:USD")) == 1
+    assert csv_path.stat().st_size > 200000  # compaction SKIPPED
+
+    # (b) invalid UTF-8 mid-file
+    csv_path.write_bytes(
+        b"exchange,symbol,ts,rate,predicted\n"
+        b"okx,BTC/USD:USD,2026-11-13T16:00:00+00:00,0.0005,\n"
+        b"\xff\xfe corrupt line\n"
+    )
+    store2 = TickStore(str(tmp_path / "t2.duckdb"))
+    m.seed_funding_history(store2)  # no raise
+    assert len(store2.funding_history("okx", "BTC/USD:USD")) == 1
+    monkey.undo()

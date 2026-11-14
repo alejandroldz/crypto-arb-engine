@@ -99,31 +99,48 @@ def seed_funding_history(ticks):
     keep: list[list[str]] = []
     cutoff = datetime.now(timezone.utc) - timedelta(days=7)
     try:
-        fh = open(FUNDING_LOG_CSV, newline="", encoding="utf-8")
-    except FileNotFoundError:
+        # errors="replace": one invalid UTF-8 byte must not kill the read
+        fh = open(FUNDING_LOG_CSV, newline="", encoding="utf-8",
+                  errors="replace")
+    except (FileNotFoundError, OSError):
         return 0
-    with fh:  # op.#16: stream the CSV, never load it whole into RAM
-        reader = csv.reader(fh)
-        next(reader, None)  # header
-        for row in reader:
-            if len(row) < 5:
-                continue
-            exchange, symbol, ts_iso, rate, predicted = row[:5]
-            try:
-                ts = to_utc(ts_iso)
-            except ValueError:
-                failed += 1
-                continue
-            if ts >= cutoff:
-                keep.append(row[:5])
-            if ts <= watermarks.get((exchange, symbol), epoch):
-                continue  # already in DuckDB (per-series watermark)
-            if ticks.insert_funding_raw(exchange, symbol, ts_iso, rate, predicted or None):
-                seeded += 1
-            else:
-                failed += 1
+    read_ok = True
+    try:
+        with fh:  # op.#16: stream the CSV, never load it whole into RAM
+            reader = csv.reader(fh)
+            next(reader, None)  # header
+            for row in reader:
+                if len(row) < 5:
+                    continue
+                exchange, symbol, ts_iso, rate, predicted = row[:5]
+                try:
+                    ts = to_utc(ts_iso)
+                except ValueError:
+                    failed += 1
+                    continue
+                if ts >= cutoff:
+                    keep.append(row[:5])
+                if ts <= watermarks.get((exchange, symbol), epoch):
+                    continue  # already in DuckDB (per-series watermark)
+                if ticks.insert_funding_raw(
+                        exchange, symbol, ts_iso, rate, predicted or None):
+                    seeded += 1
+                else:
+                    failed += 1
+    except Exception as exc:
+        # F50: csv.Error (field > 131072 bytes) is NOT a ValueError and
+        # UnicodeDecodeError escapes the per-row try. Seeding is
+        # housekeeping, not boot-critical: keep what we got and boot.
+        read_ok = False
+        logger.warning("funding seed read stopped early (engine continues): "
+                       "%s: %s", type(exc).__name__, exc)
     if failed:
         logger.warning("funding seed: %d rows failed to insert", failed)
+    if not read_ok:
+        # F50: never compact after a partial read - the rewrite would drop
+        # every valid row that came AFTER the corruption
+        logger.warning("funding_log compaction skipped: partial read")
+        return seeded
     # caos: the CSV grew unbounded (~300 KB/day). DuckDB is the durable
     # store; the CSV only needs recent rows as a restart seed. Rewrite
     # atomically keeping the last 7 days.
