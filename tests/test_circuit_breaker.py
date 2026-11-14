@@ -205,3 +205,22 @@ def test_f57_risk_decimals_have_bounds():
                 m.delenv(k.upper(), raising=False)
             Settings(**kwargs)
     Settings()  # defaults still valid
+
+
+def test_f58_screener_interval_cannot_hot_loop():
+    """F58: interval 0 hammered the public APIs at 100% CPU (ban risk)."""
+    import pydantic
+    from app.core.config import Settings
+
+    with pytest.raises(pydantic.ValidationError):
+        Settings(screener_interval_s=0)
+    with pytest.raises(pydantic.ValidationError):
+        Settings(screener_interval_s=30)
+    Settings(screener_interval_s=60)
+    # hygiene bounds on the remaining ints
+    with pytest.raises(pydantic.ValidationError):
+        Settings(max_leg_delay_ms=0)
+    with pytest.raises(pydantic.ValidationError):
+        Settings(book_retention_days=0)
+    with pytest.raises(pydantic.ValidationError):
+        Settings(pp_holding_hours=-1)

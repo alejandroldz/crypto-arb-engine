@@ -73,7 +73,7 @@ class Settings(BaseSettings):
     maker_fee_bps: str = "kraken:40,krakenfutures:2,bybit:2,okx:2"
     # ejecucion de entrada: "maker" (limit pasivo con timeout) o "taker" (cruza siempre)
     execution_mode: str = "maker"
-    maker_timeout_seconds: int = 60
+    maker_timeout_seconds: int = Field(default=60, ge=1)
     # que hacer si la limit no se llena a tiempo: "taker" (cruza y paga taker) o "cancel"
     maker_fallback: str = "taker"
     # sizing dinamico (modulo 3): Kelly reducido con cap duro
@@ -87,13 +87,13 @@ class Settings(BaseSettings):
     # perp-perp (modulo 1): arbitraje de funding entre venues, sin pata spot
     perp_perp_enabled: bool = False  # activado via .env tras validacion
     pp_min_net_profit_usd: Decimal = Decimal("2")
-    pp_holding_hours: int = 720
+    pp_holding_hours: int = Field(default=720, ge=1)
     pp_max_notional_per_venue_usd: Decimal = Decimal("4000")
     pp_max_notional_per_pair_usd: Decimal = Decimal("2500")
     pp_min_notional_usd: Decimal = Decimal("250")
     # frescura exigida a los libros para operar PP (ms) - un venue caido
     # no es operable
-    max_book_age_ms: int = 2000
+    max_book_age_ms: int = Field(default=2000, ge=0)
     # F06: spread relativo maximo por libro para ENTRAR (bps). Un libro con
     # bid=1/ask=100 es una senal economicamente falsa, no una oportunidad
     max_book_spread_bps: Decimal = Decimal("50")
@@ -110,7 +110,7 @@ class Settings(BaseSettings):
     # minimum funding-rate history samples before approving a carry
     # fuzz F56: 0 is a plausible experiment value and made every
     # candidate ZeroDivisionError on an empty history -> global HALT
-    min_funding_history: int = Field(default=48, ge=1)
+    min_funding_history: int = Field(default=30, ge=1)
 
     # funding payment interval per venue (hours): krakenfutures PF perps pay
     # hourly, OKX X-Perps every 8h - economics must scale by this or Kraken
@@ -118,14 +118,14 @@ class Settings(BaseSettings):
     funding_interval_hours: str = "krakenfutures:1,okx:8"
 
     # caos H9: book snapshot retention in duckdb (funding history kept)
-    book_retention_days: int = 3
+    book_retention_days: int = Field(default=3, ge=1)
 
     # staleness gate (RISK 3)
-    max_data_age_ms_funding: int = 2000
+    max_data_age_ms_funding: int = Field(default=2000, ge=0)
 
     # execution / legging risk (RISK 1)
-    max_leg_delay_ms: int = 1500
-    dry_run_latency_ms: int = 150
+    max_leg_delay_ms: int = Field(default=1500, ge=1)
+    dry_run_latency_ms: int = Field(default=150, ge=0)
 
     # perp risk (RISK 5). max_leverage is the hard EU MiFID retail cap.
     max_leverage: Decimal = Decimal("10")
@@ -168,7 +168,9 @@ class Settings(BaseSettings):
 
     # screener: periodic re-selection of eligible perps (public data only)
     screener_enabled: bool = True
-    screener_interval_s: int = 14400  # 4h; funding moves on 8h intervals
+    # fuzz F58: 0/negative was a HOT LOOP hammering the public venue
+    # APIs (ban risk) at 100% CPU - 68k sweeps in 0.5s in the repro
+    screener_interval_s: int = Field(default=14400, ge=60)  # 4h; funding moves on 8h intervals
     screener_min_volume_usd: Decimal = Decimal("10000000")
     screener_min_positive_pct: Decimal = Decimal("0.60")
     # configured perp keys are always eligible (seeded), blacklist keys never are
