@@ -1,4 +1,5 @@
 """Dynamic sizing: reduced Kelly, hard caps, min cut."""
+import pytest
 from decimal import Decimal
 
 from app.core.decimals import D, ZERO
@@ -77,3 +78,32 @@ def test_d4_perp_perp_kelly_normalizes_history_per_hour():
     b = dynamic_notional(history=hist_hourly, **kw)
     # the per-interval history understates the score by ~8x -> smaller size
     assert a < b
+
+
+def test_f53_kelly_fraction_cannot_exceed_cap():
+    """kelly_fraction=100 used to give 100x the documented per-carry cap."""
+    from app.engines.sizing import dynamic_notional
+
+    n = dynamic_notional(
+        edge_per_interval=Decimal("0.01"),
+        history=[Decimal("0.01"), Decimal("0.011"), Decimal("0.009")],
+        budget_remaining=Decimal("100000"),
+        kelly_fraction=Decimal("100"),  # typo-class value
+        full_score=Decimal("0.5"),
+        min_notional=Decimal("250"),
+        max_notional=Decimal("5000"),
+    )
+    assert n <= Decimal("5000")
+
+
+def test_f53_config_rejects_hostile_kelly_env():
+    import pydantic
+    from app.core.config import Settings
+
+    with pytest.raises(pydantic.ValidationError):
+        Settings(kelly_fraction=Decimal("25"))
+    with pytest.raises(pydantic.ValidationError):
+        Settings(kelly_fraction=Decimal("-0.1"))
+    with pytest.raises(pydantic.ValidationError):
+        Settings(sizing_full_score=Decimal("0"))
+    Settings(kelly_fraction=Decimal("0.25"))  # sane value still works

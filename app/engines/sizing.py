@@ -45,7 +45,11 @@ def dynamic_notional(
     std = rate_std(history)
     # zero observed variance = the strongest possible signal
     score = div(edge, std) if std > ZERO else D("999999")
-    fraction = min(D("1"), div(score, D(full_score))) * D(kelly_fraction)
+    # fuzz F53: the min() capped the SCORE, but kelly multiplied AFTER the
+    # cap - kelly_fraction=100 gave 100x the documented per-carry cap.
+    # Clamp the product: fraction NEVER exceeds 1.
+    fraction = min(D("1"),
+                   min(D("1"), div(score, D(full_score))) * D(kelly_fraction))
     notional = min(D(max_notional), budget) * fraction
     if notional < D(min_notional):
         return ZERO

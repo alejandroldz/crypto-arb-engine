@@ -108,3 +108,18 @@ async def test_nan_fee_from_fetcher_falls_back_to_config(tmp_path):
     assert out["krakenfutures"].taker_bps == Decimal("5")
     # and the NaN was NOT persisted to the state file
     assert "NaN" not in (tmp_path / "fees.json").read_text()
+
+
+def test_f54_load_state_survives_hostile_file(tmp_path):
+    """UnicodeDecodeError / RecursionError killed fee_refresh_loop forever;
+    corrupt state = fresh start."""
+    from app.engines.fee_oracle import FeeOracle
+
+    class S:  # minimal settings stub
+        pass
+
+    bad = tmp_path / "fees.json"
+    bad.write_bytes(b'{"fees": "\xff"}')
+    assert FeeOracle(S(), str(bad))._load_state() == {}
+    bad.write_text("[" * 100000 + "]" * 100000)
+    assert FeeOracle(S(), str(bad))._load_state() == {}

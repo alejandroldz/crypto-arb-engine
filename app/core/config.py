@@ -76,10 +76,12 @@ class Settings(BaseSettings):
     maker_fallback: str = "taker"
     # sizing dinamico (modulo 3): Kelly reducido con cap duro
     sizing_mode: str = "fixed"  # "fixed" (baseline) | "kelly" (modulo 3)
-    kelly_fraction: Decimal = Decimal("0.25")
-    sizing_full_score: Decimal = Decimal("0.5")
-    sizing_min_notional_usd: Decimal = Decimal("250")
-    sizing_max_notional_usd: Decimal = Decimal("5000")
+    # fuzz F53: KELLY_FRACTION is an env var - a typo ("25" vs "0.25")
+    # oversized every kelly entry 100x; full_score=0 was ZeroDivisionError
+    kelly_fraction: Decimal = Field(default=Decimal("0.25"), ge=0, le=1)
+    sizing_full_score: Decimal = Field(default=Decimal("0.5"), gt=0)
+    sizing_min_notional_usd: Decimal = Field(default=Decimal("250"), ge=0)
+    sizing_max_notional_usd: Decimal = Field(default=Decimal("5000"), ge=0)
     # perp-perp (modulo 1): arbitraje de funding entre venues, sin pata spot
     perp_perp_enabled: bool = False  # activado via .env tras validacion
     pp_min_net_profit_usd: Decimal = Decimal("2")

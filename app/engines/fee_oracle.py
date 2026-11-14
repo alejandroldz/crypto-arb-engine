@@ -123,7 +123,10 @@ class FeeOracle:
     def _load_state(self) -> dict:
         try:
             raw = json.loads(self.state_path.read_text())
-        except (OSError, json.JSONDecodeError):
+        except Exception:
+            # fuzz F54: same escape as F51 - UnicodeDecodeError and
+            # RecursionError killed fee_refresh_loop forever; a corrupt
+            # state file means fresh start, not a dead subsystem
             return {}
         if not isinstance(raw, dict):
             # fuzz F36: valid JSON of the wrong shape silently froze fees
