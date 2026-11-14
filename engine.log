@@ -1,15 +1,3 @@
-2026-11-13 23:01:24,237 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:24,237 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:24,246 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:24,246 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:24,255 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:24,255 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:24,268 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:24,268 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:24,285 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:24,285 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:24,298 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:24,298 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
 2026-11-13 23:01:24,353 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
 2026-11-13 23:01:24,353 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
 2026-11-13 23:01:24,367 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
@@ -1998,3 +1986,15 @@
 2026-11-14 09:33:45,283 ingestion WARNING book feed okx BTC/USD:USD-310404: NetworkError: Connection closed by remote server, closing code 1006
 2026-11-14 09:33:45,285 ingestion WARNING book feed kraken BTC/USD: NetworkError: Connection closed by remote server, closing code 1006
 2026-11-14 09:33:45,285 ingestion WARNING book feed kraken BTC/USD: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-14 09:33:46,224 ingestion WARNING book feed kraken SOL/USD: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-14 09:33:46,224 ingestion WARNING book feed kraken SOL/USD: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-14 09:33:47,589 ingestion WARNING book feed kraken ETH/USD: RequestTimeout: Connection to wss://ws.kraken.com/v2 timed out due to a ping-pong keepalive missing on time
+2026-11-14 09:33:47,589 ingestion WARNING book feed kraken ETH/USD: RequestTimeout: Connection to wss://ws.kraken.com/v2 timed out due to a ping-pong keepalive missing on time
+2026-11-14 09:33:52,733 ingestion WARNING book feed okx ETH/USD:USD-310404: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-14 09:33:52,733 ingestion WARNING book feed okx ETH/USD:USD-310404: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-14 09:33:53,177 ingestion WARNING book feed okx SOL/USD:USD-310404: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-14 09:33:53,177 ingestion WARNING book feed okx SOL/USD:USD-310404: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-14 09:33:53,881 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007091634104952674 vs polled mean -0.000002443730090999564705882352941 - entries quarantined
+2026-11-14 09:33:53,881 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007091634104952674 vs polled mean -0.000002443730090999564705882352941 - entries quarantined
+2026-11-14 10:00:18,947 ingestion WARNING book feed kraken BTC/USD: NetworkError: Connection closed by remote server, closing code 1006
+2026-11-14 10:00:18,947 ingestion WARNING book feed kraken BTC/USD: NetworkError: Connection closed by remote server, closing code 1006
