@@ -214,15 +214,22 @@ class FeeOracle:
                 prev = cached.get(venue)
                 if prev is not None:
                     prev_taker = D(str(prev["taker_bps"]))
+                    limit = D(self.settings.fee_change_block_pct)
+                    # fuzz nota: prev_taker <= 0 (fee cero o rebate) disabled
+                    # the guard entirely - a 0 -> 900 bps policy change went
+                    # through. With a non-positive base, compare the jump in
+                    # ABSOLUTE bps against the same threshold.
                     if prev_taker > 0:
-                        change_pct = abs(taker - prev_taker) / prev_taker * 100
-                        if change_pct > D(self.settings.fee_change_block_pct):
-                            blocked.add(venue)
-                            logger.error(
-                                "FEE GUARDRAIL %s: taker %s -> %s bps (+%.0f%%) - "
-                                "entradas nuevas bloqueadas hasta revision manual",
-                                venue, prev_taker, taker, change_pct,
-                            )
+                        jump = abs(taker - prev_taker) / prev_taker * 100
+                    else:
+                        jump = abs(taker - prev_taker)
+                    if jump > limit:
+                        blocked.add(venue)
+                        logger.error(
+                            "FEE GUARDRAIL %s: taker %s -> %s bps (jump %s) - "
+                            "entradas nuevas bloqueadas hasta revision manual",
+                            venue, prev_taker, taker, jump,
+                        )
                 cached[venue] = {
                     "maker_bps": str(maker), "taker_bps": str(taker), "ts": now,
                 }

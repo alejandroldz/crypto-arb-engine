@@ -123,3 +123,20 @@ def test_f54_load_state_survives_hostile_file(tmp_path):
     assert FeeOracle(S(), str(bad))._load_state() == {}
     bad.write_text("[" * 100000 + "]" * 100000)
     assert FeeOracle(S(), str(bad))._load_state() == {}
+
+
+async def test_guardrail_blocks_zero_to_huge_jump(tmp_path):
+    """Fuzzer note: prev_taker=0 disabled the % guard entirely - a venue
+    going from zero-fee to 900 bps went straight through."""
+    oracle, s = make_oracle(tmp_path)
+    await oracle.refresh({"krakenfutures": lambda: fake("0", "0")})
+    await oracle.refresh({"krakenfutures": lambda: fake("2", "900")})
+    assert "krakenfutures" in s.fees_blocked
+
+
+async def test_guardrail_ignores_tiny_zero_base_noise(tmp_path):
+    """0 -> 3 bps is a listing change, not a policy shock: no block."""
+    oracle, s = make_oracle(tmp_path)
+    await oracle.refresh({"krakenfutures": lambda: fake("0", "0")})
+    await oracle.refresh({"krakenfutures": lambda: fake("1", "3")})
+    assert not s.fees_blocked
