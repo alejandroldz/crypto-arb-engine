@@ -1,17 +1,3 @@
-2026-11-13 23:01:18,512 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:18,512 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:18,521 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:18,521 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:18,530 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:18,530 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:18,539 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:18,539 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:18,548 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:18,548 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:18,557 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:18,557 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:18,643 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
-2026-11-13 23:01:18,643 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
 2026-11-13 23:01:18,658 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
 2026-11-13 23:01:18,658 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
 2026-11-13 23:01:18,667 ingestion WARNING book krakenfutures:BTC/USD:USD truncated to 1000 levels/side (payload too deep)
@@ -1998,3 +1984,17 @@
 2026-11-14 01:21:34,235 ingestion WARNING book feed krakenfutures ETH/USD:USD: RequestTimeout: Connection to wss://futures.kraken.com/ws/v1 timed out due to a ping-pong keepalive missing on time
 2026-11-14 01:21:34,236 ingestion WARNING book feed kraken BTC/USD: RequestTimeout: Connection to wss://ws.kraken.com/v2 timed out due to a ping-pong keepalive missing on time
 2026-11-14 01:21:34,236 ingestion WARNING book feed kraken BTC/USD: RequestTimeout: Connection to wss://ws.kraken.com/v2 timed out due to a ping-pong keepalive missing on time
+2026-11-14 01:21:35,081 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007091634104952674 vs polled mean -0.000002306428425564271844660194175 - entries quarantined
+2026-11-14 01:21:35,081 main WARNING funding source mismatch krakenfutures:ETH/USD:USD: screener mean 0.000007091634104952674 vs polled mean -0.000002306428425564271844660194175 - entries quarantined
+2026-11-14 01:21:37,215 ingestion WARNING book feed okx BTC/USD:USD-310404: RequestTimeout: Connection to wss://ws.okx.com:443/ws/v5/public timed out due to a ping-pong keepalive missing on time
+2026-11-14 01:21:37,215 ingestion WARNING book feed okx BTC/USD:USD-310404: RequestTimeout: Connection to wss://ws.okx.com:443/ws/v5/public timed out due to a ping-pong keepalive missing on time
+2026-11-14 01:21:37,215 ingestion WARNING book feed okx SOL/USD:USD-310404: RequestTimeout: Connection to wss://ws.okx.com:443/ws/v5/public timed out due to a ping-pong keepalive missing on time
+2026-11-14 01:21:37,215 ingestion WARNING book feed okx SOL/USD:USD-310404: RequestTimeout: Connection to wss://ws.okx.com:443/ws/v5/public timed out due to a ping-pong keepalive missing on time
+2026-11-14 01:21:37,462 ingestion WARNING book feed okx ETH/USD:USD-310404: RequestTimeout: Connection to wss://ws.okx.com:443/ws/v5/public timed out due to a ping-pong keepalive missing on time
+2026-11-14 01:21:37,462 ingestion WARNING book feed okx ETH/USD:USD-310404: RequestTimeout: Connection to wss://ws.okx.com:443/ws/v5/public timed out due to a ping-pong keepalive missing on time
+2026-11-14 01:52:14,568 ingestion WARNING book feed kraken SOL/USD: RequestTimeout: Connection to wss://ws.kraken.com/v2 timed out due to a ping-pong keepalive missing on time
+2026-11-14 01:52:14,568 ingestion WARNING book feed kraken SOL/USD: RequestTimeout: Connection to wss://ws.kraken.com/v2 timed out due to a ping-pong keepalive missing on time
+2026-11-14 01:52:14,569 ingestion WARNING book feed kraken BTC/USD: RequestTimeout: Connection to wss://ws.kraken.com/v2 timed out due to a ping-pong keepalive missing on time
+2026-11-14 01:52:14,569 ingestion WARNING book feed kraken BTC/USD: RequestTimeout: Connection to wss://ws.kraken.com/v2 timed out due to a ping-pong keepalive missing on time
+2026-11-14 01:52:14,752 ingestion WARNING book feed kraken ETH/USD: RequestTimeout: Connection to wss://ws.kraken.com/v2 timed out due to a ping-pong keepalive missing on time
+2026-11-14 01:52:14,752 ingestion WARNING book feed kraken ETH/USD: RequestTimeout: Connection to wss://ws.kraken.com/v2 timed out due to a ping-pong keepalive missing on time
