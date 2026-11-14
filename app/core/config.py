@@ -125,7 +125,10 @@ class Settings(BaseSettings):
 
     # execution / legging risk (RISK 1)
     max_leg_delay_ms: int = Field(default=1500, ge=1)
-    dry_run_latency_ms: int = Field(default=150, ge=0)
+    # fuzz F59: the simulated latency sleeps INSIDE the per-candidate
+    # handle - 10**8 ms froze ALL management (entries, unwinds, the
+    # emergency MMR check) for ~27h with no alert. Cap at 10s.
+    dry_run_latency_ms: int = Field(default=150, ge=0, le=10000)
 
     # perp risk (RISK 5). max_leverage is the hard EU MiFID retail cap.
     max_leverage: Decimal = Decimal("10")

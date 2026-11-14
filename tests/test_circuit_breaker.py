@@ -224,3 +224,16 @@ def test_f58_screener_interval_cannot_hot_loop():
         Settings(book_retention_days=0)
     with pytest.raises(pydantic.ValidationError):
         Settings(pp_holding_hours=-1)
+
+
+def test_f59_dry_run_latency_capped():
+    """F59: a fat-fingered latency slept inside the scan loop and froze
+    ALL management for hours with no alert."""
+    import pydantic
+    from app.core.config import Settings
+
+    with pytest.raises(pydantic.ValidationError):
+        Settings(dry_run_latency_ms=10**8)
+    with pytest.raises(pydantic.ValidationError):
+        Settings(dry_run_latency_ms=90000)  # "1.5 min" fat finger
+    Settings(dry_run_latency_ms=150)
