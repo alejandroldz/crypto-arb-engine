@@ -20,7 +20,12 @@ from app.engines.risk import StalenessGate, UtaAccountState
 
 
 class FakeTicks:
+    def __init__(self, history=None):
+        self._history = history
+
     def funding_history(self, exchange, symbol, limit=500, interval_h=1):
+        if self._history is not None:
+            return self._history
         return [Decimal("0.001")] * 50  # p25 blend keeps the full rate
 
 
@@ -303,3 +308,27 @@ async def test_quarantine_logs_once_per_transition(caplog):
     assert await handle_funding_candidate(
         ctx, r, time.monotonic_ns()) is not None
     assert key not in ctx.quarantined
+
+
+def test_f56_min_funding_history_cannot_be_zero():
+    import pydantic
+
+    with pytest.raises(pydantic.ValidationError):
+        Settings(min_funding_history=0)
+
+
+@pytest.mark.asyncio
+async def test_f56_empty_history_never_divides(monkeypatch):
+    """Defense in depth: even if min_funding_history could reach 0, an
+    empty history + screener mean must not ZeroDivisionError."""
+    settings = Settings(
+        spot_exchange_list=["kraken"], perp_exchange_list=["krakenfutures"],
+        min_net_profit_usd=Decimal("0.01"), min_funding_history=10,
+    )
+    ctx = _ctx(settings)
+    ctx.screener_means = {"krakenfutures:BTC/USD:USD": Decimal("0.0009")}
+    ctx.settings.min_funding_history = 0  # bypass the config guard
+    ctx.ticks = FakeTicks(history=[])  # boot-fresh DuckDB
+    r = _rate("krakenfutures", "BTC/USD:USD")
+    # empty history + screener mean + min=0: no ZeroDivisionError, no entry
+    assert await handle_funding_candidate(ctx, r, time.monotonic_ns()) is None

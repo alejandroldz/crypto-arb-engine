@@ -125,7 +125,9 @@ async def handle_funding_candidate(
     # screener's independent venue-historical mean; a material discrepancy
     # quarantines ENTRIES (open positions keep being managed)
     smean = (ctx.screener_means or {}).get(fkey)
-    if smean is not None and len(history) >= ctx.settings.min_funding_history:
+    if smean is not None and history and \
+            len(history) >= ctx.settings.min_funding_history:
+        # fuzz F56 (defense in depth): never divide by an empty history
         pmean = sum(history) / len(history)
         if sources_disagree(D(smean), pmean):
             if fkey not in ctx.quarantined:

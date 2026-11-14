@@ -106,7 +106,9 @@ class Settings(BaseSettings):
     fees_blocked: set[str] = Field(default_factory=set, exclude=True)
     default_taker_fee_bps: Decimal = Decimal("40")
     # minimum funding-rate history samples before approving a carry
-    min_funding_history: int = 30
+    # fuzz F56: 0 is a plausible experiment value and made every
+    # candidate ZeroDivisionError on an empty history -> global HALT
+    min_funding_history: int = Field(default=48, ge=1)
 
     # funding payment interval per venue (hours): krakenfutures PF perps pay
     # hourly, OKX X-Perps every 8h - economics must scale by this or Kraken
