@@ -59,7 +59,9 @@ class Settings(BaseSettings):
     # sizing / profitability
     target_quote_sizes: str = "100,500,1000"
     min_net_profit_usd: Decimal = Decimal("5")
-    slippage_buffer_bps: Decimal = Decimal("5")
+    # fuzz F57: typos in RISK decimals disabled protections SILENTLY
+    # (negative slippage = negative costs = approve_trade passes anything)
+    slippage_buffer_bps: Decimal = Field(default=Decimal("5"), ge=0)
     liquidity_haircut: Decimal = Decimal("0.50")
     # per-venue taker fees in bps (worst-case retail tier; user must verify
     # their own tier). kraken spot taker is far pricier than perp venues.
@@ -134,7 +136,7 @@ class Settings(BaseSettings):
     # See scripts/leverage_compare.py.
     short_leverage_map: str = "krakenfutures:5,okx:1"
     default_short_leverage: Decimal = Decimal("1")
-    liquidation_buffer_pct: Decimal = Decimal("15")
+    liquidation_buffer_pct: Decimal = Field(default=Decimal("15"), gt=0, le=90)
 
     # circuit breaker (RISK 6)
     max_daily_loss_usd: Decimal = Decimal("25")
@@ -154,15 +156,15 @@ class Settings(BaseSettings):
 
     # unified trading account (cross-collateral portfolio margin)
     account_margin_mode: str = "UNIFIED"  # UNIFIED | ISOLATED_SPLIT
-    uta_capital_utilization_pct: Decimal = Decimal("0.90")
+    uta_capital_utilization_pct: Decimal = Field(default=Decimal("0.90"), gt=0, le=1)
     collateral_haircut_map: str = "BTC:0.95,ETH:0.95,SOL:0.85"
-    min_collateral_ratio_required: Decimal = Decimal("0.80")
-    max_account_mmr_warning: Decimal = Decimal("0.65")
-    max_account_mmr_emergency_unwind: Decimal = Decimal("0.75")
+    min_collateral_ratio_required: Decimal = Field(default=Decimal("0.80"), ge=0, le=1)
+    max_account_mmr_warning: Decimal = Field(default=Decimal("0.65"), gt=0, le=1)
+    max_account_mmr_emergency_unwind: Decimal = Field(default=Decimal("0.75"), gt=0, le=1)
     # simulated perp maintenance-margin rate for paper UTA health; real MMR
     # (~0.5%) can never reach the 75% emergency at 1x, so 25% keeps the
     # emergency path exercisable (documented fallback, not exchange data)
-    sim_maintenance_margin_rate: Decimal = Decimal("0.25")
+    sim_maintenance_margin_rate: Decimal = Field(default=Decimal("0.25"), gt=0, le=1)
 
     # screener: periodic re-selection of eligible perps (public data only)
     screener_enabled: bool = True

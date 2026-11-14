@@ -178,3 +178,30 @@ def test_f47_order_window_cannot_be_disabled_by_typo():
         Settings(cb_max_orders_per_window=0)
     with pytest.raises(pydantic.ValidationError):
         Settings(cb_max_consecutive_failures=-1)
+
+
+def test_f57_risk_decimals_have_bounds():
+    """F57: config typos silently disabled RISK protections or broke
+    sizing; each now fails loud at startup."""
+    import pydantic
+    from app.core.config import Settings
+
+    bad = [
+        {"slippage_buffer_bps": Decimal("-1000")},   # negative costs
+        {"liquidation_buffer_pct": Decimal("-15")},  # RISK 5 off
+        {"liquidation_buffer_pct": Decimal("0")},
+        {"uta_capital_utilization_pct": Decimal("1.5")},  # over-deploy
+        {"min_collateral_ratio_required": Decimal("-1")},
+        {"max_account_mmr_warning": Decimal("0")},
+        {"max_account_mmr_emergency_unwind": Decimal("1e9")},
+        {"sim_maintenance_margin_rate": Decimal("0")},  # all UTA gates open
+        {"liquidity_haircut": Decimal("100")},
+    ]
+    for kwargs in bad:
+        with pytest.raises(pydantic.ValidationError), \
+                pytest.MonkeyPatch().context() as m:
+            # env must not leak real settings into the constructor
+            for k in list(kwargs):
+                m.delenv(k.upper(), raising=False)
+            Settings(**kwargs)
+    Settings()  # defaults still valid
